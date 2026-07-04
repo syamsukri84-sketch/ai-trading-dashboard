@@ -96,6 +96,22 @@ def get_dashboard_password():
         return ""
 
 
+def get_runtime_setting(name, default=""):
+    env_value = os.getenv(name, "").strip()
+    if env_value:
+        return env_value
+    try:
+        value = st.secrets.get(name, default)
+        return str(value).strip()
+    except Exception:
+        return str(default).strip()
+
+
+def get_bool_runtime_setting(name, default=False):
+    value = get_runtime_setting(name, str(default)).lower()
+    return value in {"1", "true", "yes", "y", "on"}
+
+
 def require_dashboard_password():
     expected_password = get_dashboard_password()
     if not expected_password:
@@ -799,12 +815,17 @@ def add_liquidity_tier(df, tier_df):
 
 tickers = load_config_tickers()
 
-operation_mode = st.sidebar.radio(
-    "Mode Operasional",
-    ["Offline", "Online opsional"],
-    index=1,
-    help="Offline memakai data lokal dan menonaktifkan aksi yang membutuhkan internet. Online opsional mengaktifkan update harga/berita otomatis.",
-)
+offline_only = get_bool_runtime_setting("AI_TRADING_OFFLINE_ONLY", default=True)
+if offline_only:
+    operation_mode = "Offline"
+    st.sidebar.info("Mode offline penuh aktif. Fitur internet dan MongoDB dinonaktifkan.")
+else:
+    operation_mode = st.sidebar.radio(
+        "Mode Operasional",
+        ["Offline", "Online opsional"],
+        index=0,
+        help="Offline memakai data lokal dan menonaktifkan aksi yang membutuhkan internet. Online opsional mengaktifkan update harga/berita otomatis.",
+    )
 offline_mode = operation_mode == "Offline"
 launch_snapshot = build_launch_sync_snapshot(tickers)
 render_launch_sync_snapshot(launch_snapshot, operation_mode)
@@ -818,13 +839,16 @@ with st.sidebar.expander("Status Sinkronisasi", expanded=True):
         st.caption("Tombol update harga online dinonaktifkan. Ubah Mode Operasional ke Online opsional jika ingin update dari dashboard.")
     else:
         st.info("Mode online opsional aktif. Update data dan berita dapat memakai koneksi internet.")
-    mongo_status = check_mongo_status()
-    if mongo_status["ok"]:
-        st.success(f"MongoDB Atlas aktif: {mongo_status['database']}")
-    elif mongo_status["enabled"]:
-        st.warning(f"MongoDB Atlas belum tersambung: {mongo_status['message']}")
+    if offline_mode:
+        st.caption("MongoDB tidak diperlukan pada mode offline. Semua fitur memakai arsip dan file lokal.")
     else:
-        st.caption("MongoDB Atlas belum aktif. Isi MONGODB_URI untuk sinkronisasi online.")
+        mongo_status = check_mongo_status()
+        if mongo_status["ok"]:
+            st.success(f"MongoDB Atlas aktif: {mongo_status['database']}")
+        elif mongo_status["enabled"]:
+            st.warning(f"MongoDB Atlas belum tersambung: {mongo_status['message']}")
+        else:
+            st.caption("MongoDB Atlas belum aktif. Isi MONGODB_URI untuk sinkronisasi online.")
 
 st.sidebar.header("Ticker Aktif Global")
 ticker_input = st.sidebar.text_input("Kode Saham", value="BBRI", help="Ticker ini otomatis dipakai sebagai default/filter di semua tab.")
