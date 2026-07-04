@@ -12,8 +12,12 @@ __pycache__/
 .agents/
 .continue/
 .vscode/
-data/models/
-data/raw/
+data/models/*
+!data/models/GLOBAL/
+!data/models/GLOBAL/*.joblib
+!data/models/model_registry.json
+data/raw/*
+!data/raw/*.csv
 data/cache/
 data/jobs/
 data/tracking/backups/

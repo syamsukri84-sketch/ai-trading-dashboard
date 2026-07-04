@@ -90,9 +90,28 @@ def list_ticker_models(ticker: str, registry_path: str = MODEL_REGISTRY_FILE) ->
 
 def load_model_artifact(record: dict) -> Any:
     path = record.get("path")
-    if not path or not os.path.exists(path):
+    if path and os.path.exists(path):
+        return joblib.load(path)
+
+    ticker = normalize_ticker(record.get("ticker", ""))
+    model_name = record.get("model_name")
+    horizon_days = record.get("horizon_days")
+    prediction_purpose = record.get("prediction_purpose")
+    if ticker and model_name and horizon_days and prediction_purpose:
+        fallback_path = os.path.join(
+            MODEL_DIR,
+            ticker,
+            f"{model_key(model_name, int(horizon_days), prediction_purpose)}.joblib",
+        )
+        if os.path.exists(fallback_path):
+            return joblib.load(fallback_path)
+
+    if not path:
+        path = "(path kosong di registry)"
+    else:
+        path = f"{path} atau fallback lokal"
+    if not os.path.exists(str(path)):
         raise FileNotFoundError(f"Artifact model tidak ditemukan: {path}")
-    return joblib.load(path)
 
 
 def model_store_status(tickers: list[str] | None = None) -> dict:
