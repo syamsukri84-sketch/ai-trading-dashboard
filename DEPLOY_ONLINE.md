@@ -30,18 +30,19 @@ streamlit_app.py
 ```
 
 5. Buka menu **Advanced settings** atau **App settings > Secrets**.
-6. Isi secrets minimal untuk mode offline penuh:
+6. Isi secrets minimal untuk mode hybrid:
 
 ```toml
 AI_TRADING_DASHBOARD_PASSWORD = "password_yang_kuat"
-AI_TRADING_OFFLINE_ONLY = "true"
+AI_TRADING_PRICE_UPDATE_ONLINE = "true"
+AI_TRADING_EXTERNAL_SERVICES = "false"
 AI_TRADING_DUPLICATE_POLICY = "skip"
 AI_TRADING_PREDICTION_RUN_TYPE = "FINAL"
 ```
 
-Dengan konfigurasi ini, dashboard memakai data lokal yang sudah ikut repository dan tidak mencoba koneksi MongoDB dari sidebar.
+Dengan konfigurasi ini, internet hanya dipakai saat tombol update harga ditekan. Prediksi, ranking, evaluasi, sentimen lokal, dan model FINAL tetap berjalan dari file lokal yang ikut repository.
 
-Jika nanti ingin mengaktifkan sinkronisasi MongoDB Atlas, ubah `AI_TRADING_OFFLINE_ONLY` menjadi `"false"` dan tambahkan:
+Jika nanti ingin mengaktifkan sinkronisasi MongoDB Atlas atau layanan eksternal lain, ubah `AI_TRADING_EXTERNAL_SERVICES` menjadi `"true"` dan tambahkan:
 
 ```toml
 MONGODB_URI = "mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/?retryWrites=true&w=majority"

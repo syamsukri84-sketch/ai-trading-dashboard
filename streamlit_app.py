@@ -815,18 +815,16 @@ def add_liquidity_tier(df, tier_df):
 
 tickers = load_config_tickers()
 
-offline_only = get_bool_runtime_setting("AI_TRADING_OFFLINE_ONLY", default=True)
-if offline_only:
-    operation_mode = "Offline"
-    st.sidebar.info("Mode offline penuh aktif. Fitur internet dan MongoDB dinonaktifkan.")
+price_update_online = get_bool_runtime_setting("AI_TRADING_PRICE_UPDATE_ONLINE", default=True)
+external_services_enabled = get_bool_runtime_setting("AI_TRADING_EXTERNAL_SERVICES", default=False)
+if price_update_online:
+    operation_mode = "Hybrid offline"
+    st.sidebar.info("Mode hybrid aktif. Internet hanya dipakai saat tombol update harga ditekan; AI Trading tetap memakai file lokal dan model offline.")
 else:
-    operation_mode = st.sidebar.radio(
-        "Mode Operasional",
-        ["Offline", "Online opsional"],
-        index=0,
-        help="Offline memakai data lokal dan menonaktifkan aksi yang membutuhkan internet. Online opsional mengaktifkan update harga/berita otomatis.",
-    )
-offline_mode = operation_mode == "Offline"
+    operation_mode = "Offline"
+    st.sidebar.info("Mode offline penuh aktif. Semua fitur internet dinonaktifkan.")
+offline_mode = not price_update_online
+sentiment_online_enabled = external_services_enabled and price_update_online
 launch_snapshot = build_launch_sync_snapshot(tickers)
 render_launch_sync_snapshot(launch_snapshot, operation_mode)
 
@@ -836,19 +834,19 @@ with st.sidebar.expander("Status Sinkronisasi", expanded=True):
     st.metric("Prediksi Aktif", f"{launch_snapshot['active_count']:,}")
     if offline_mode:
         st.success("Mode offline aktif. Analisis lokal, ranking, dan evaluasi akurasi siap digunakan.")
-        st.caption("Tombol update harga online dinonaktifkan. Ubah Mode Operasional ke Online opsional jika ingin update dari dashboard.")
+        st.caption("Tombol update harga online dinonaktifkan oleh konfigurasi.")
     else:
-        st.info("Mode online opsional aktif. Update data dan berita dapat memakai koneksi internet.")
-    if offline_mode:
-        st.caption("MongoDB tidak diperlukan pada mode offline. Semua fitur memakai arsip dan file lokal.")
-    else:
+        st.info("Mode hybrid aktif. Update harga boleh memakai internet; prediksi, ranking, dan evaluasi tetap offline.")
+    if external_services_enabled:
         mongo_status = check_mongo_status()
         if mongo_status["ok"]:
             st.success(f"MongoDB Atlas aktif: {mongo_status['database']}")
         elif mongo_status["enabled"]:
             st.warning(f"MongoDB Atlas belum tersambung: {mongo_status['message']}")
         else:
-            st.caption("MongoDB Atlas belum aktif. Isi MONGODB_URI untuk sinkronisasi online.")
+            st.caption("MongoDB Atlas belum aktif. Isi MONGODB_URI jika ingin sinkronisasi eksternal.")
+    else:
+        st.caption("MongoDB dan layanan eksternal dinonaktifkan. Semua fitur AI Trading membaca/menulis file lokal.")
 
 st.sidebar.header("Ticker Aktif Global")
 ticker_input = st.sidebar.text_input("Kode Saham", value="BBRI", help="Ticker ini otomatis dipakai sebagai default/filter di semua tab.")
@@ -4174,17 +4172,17 @@ with tab_sentiment:
     )
     online_first = st.checkbox(
         "Coba ambil berita terbaru dari internet sebelum analisis",
-        value=not offline_mode,
+        value=sentiment_online_enabled,
         key="sentiment_online_first",
-        disabled=offline_mode,
+        disabled=not sentiment_online_enabled,
     )
-    if offline_mode:
+    if not sentiment_online_enabled:
         online_first = False
     include_article_body = st.checkbox(
         "Analisis isi artikel jika halaman berita bisa dibaca",
-        value=not offline_mode,
+        value=sentiment_online_enabled,
         key="sentiment_include_article_body",
-        disabled=offline_mode,
+        disabled=not sentiment_online_enabled,
     )
 
     if st.button("Jalankan Analisis Sentimen Sekarang", type="primary", key="run_online_sentiment"):
@@ -4287,7 +4285,7 @@ with tab_sentiment:
             key="auto_news_include_article_body",
         )
 
-        if st.button("Ambil Berita Terbaru", key="fetch_latest_news", type="primary", disabled=offline_mode):
+        if st.button("Ambil Berita Terbaru", key="fetch_latest_news", type="primary", disabled=not sentiment_online_enabled):
             if not news_ticker:
                 st.warning("Ticker wajib diisi.")
             else:
