@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  api:
+    build: .
+    container_name: trading_decision_api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Map folder data lokal ke container agar database dan model tersimpan permanen
+      - ./data:/app/data
+      - ./config:/app/config
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENV=production
+      - AI_TRADING_DUPLICATE_POLICY=${AI_TRADING_DUPLICATE_POLICY:-skip}
+      - AI_TRADING_PREDICTION_RUN_TYPE=${AI_TRADING_PREDICTION_RUN_TYPE:-FINAL}
+    restart: unless-stopped
+
+  frontend:
+    build: .
+    container_name: trading_decision_ui
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data # Berbagi folder data dengan backend untuk mode offline
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AI_TRADING_DASHBOARD_PASSWORD=${AI_TRADING_DASHBOARD_PASSWORD:-}
+      - AI_TRADING_DUPLICATE_POLICY=${AI_TRADING_DUPLICATE_POLICY:-skip}
+      - AI_TRADING_PREDICTION_RUN_TYPE=${AI_TRADING_PREDICTION_RUN_TYPE:-FINAL}
+    command:
+      [
+        "streamlit",
+        "run",
+        "streamlit_app.py",
+        "--server.port=8501",
+        "--server.address=0.0.0.0",
+      ]
+    depends_on:
+      - api

@@ -1,0 +1,31 @@
+{
+  "workflow": "GLOBAL_DAILY_AFTER_MARKET",
+  "started_at": "2026-06-30 21:22:45",
+  "finished_at": "2026-06-30 21:23:04",
+  "ticker_count": 3,
+  "steps": [
+    {
+      "step": "update_data",
+      "status": "SKIPPED"
+    },
+    {
+      "step": "evaluate_pending_predictions",
+      "status": "DONE",
+      "accuracy_rows_before": 10491,
+      "accuracy_rows_after": 10491,
+      "new_evaluations": 0,
+      "pending_before": 2152,
+      "pending_after": 2152
+    },
+    {
+      "step": "predict_global_model",
+      "status": "DONE",
+      "predicted": 3,
+      "skipped": 0,
+      "failed": 0,
+      "failed_examples": [],
+      "skipped_examples": []
+    }
+  ],
+  "status": "OK"
+}

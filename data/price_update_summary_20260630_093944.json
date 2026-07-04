@@ -1,0 +1,17 @@
+{
+  "updated": [],
+  "skipped": [
+    {
+      "ticker": "BBCA",
+      "reason": "Tidak ada tanggal perdagangan unik baru."
+    },
+    {
+      "ticker": "BBRI",
+      "reason": "Tidak ada tanggal perdagangan unik baru."
+    }
+  ],
+  "failed": [],
+  "total": 2,
+  "started_at": "2026-06-30T09:39:43",
+  "finished_at": "2026-06-30T09:39:44"
+}

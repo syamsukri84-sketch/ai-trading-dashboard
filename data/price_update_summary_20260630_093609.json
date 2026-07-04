@@ -1,0 +1,1629 @@
+{
+  "updated": [
+    {
+      "ticker": "AADI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 367
+    },
+    {
+      "ticker": "AALI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ABMM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ACES",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ADES",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ADHI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ADMR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ADRO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "AGRO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "AISA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "AKRA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ALDO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ALII",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 562
+    },
+    {
+      "ticker": "AMAG",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "AMAR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "AMMN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 709
+    },
+    {
+      "ticker": "AMRT",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ANTM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "APLN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ARNA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ARTO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ASGR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ASII",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ASRI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ASSA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "AUTO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "AVIA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BACA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BALI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BAYU",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BBCA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 967
+    },
+    {
+      "ticker": "BBHI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BBMD",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 967
+    },
+    {
+      "ticker": "BBNI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BBRI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BBSI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BBTN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BBYB",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BCAP",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BDKR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 784
+    },
+    {
+      "ticker": "BDMN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BEST",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BFIN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BGTG",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BINA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BIRD",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BISI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BJBR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BJTM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BKSL",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BLOG",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 235
+    },
+    {
+      "ticker": "BMHS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BMRI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 967
+    },
+    {
+      "ticker": "BMTR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BNGA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BNII",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BNLI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BOLA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BREN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 646
+    },
+    {
+      "ticker": "BRIS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BRMS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BRPT",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BSDE",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BSIM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BSSR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BTPN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BTPS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BUDI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BUMI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BVIC",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BWPT",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "BYAN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "CARS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "CASS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "CBDK",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 344
+    },
+    {
+      "ticker": "CBUT",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 866
+    },
+    {
+      "ticker": "CFIN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "CITA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "CLEO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "CMNP",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "CMRY",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "CPIN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "CTRA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "CUAN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 781
+    },
+    {
+      "ticker": "DAAZ",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 384
+    },
+    {
+      "ticker": "DEWA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "DGWG",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 344
+    },
+    {
+      "ticker": "DILD",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "DKFT",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "DLTA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "DMAS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "DMND",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "DNET",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "DRMA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "DSNG",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "DSSA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ELPI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 932
+    },
+    {
+      "ticker": "ELSA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "EMTK",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ENRG",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "EPMT",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ERAA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ERAL",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 688
+    },
+    {
+      "ticker": "ESSA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "EXCL",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "FILM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "FISH",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "GEMS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "GGRM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "GJTL",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "GLVA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "GOLF",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 473
+    },
+    {
+      "ticker": "GOOD",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "GOTO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "GZCO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "HATM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 940
+    },
+    {
+      "ticker": "HEAL",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "HERO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "HEXA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "HMSP",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "HRTA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "HRUM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ICBP",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "IMAS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "IMPC",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "INCO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "INDF",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "INDY",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "INKP",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "INPC",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "INTP",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "IPCC",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "IPCM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ISAT",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ISSP",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ITMG",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "JARR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 933
+    },
+    {
+      "ticker": "JIHD",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "JKON",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "JPFA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "JRPT",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "JSMR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "JSPT",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "JTPE",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "KBLI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "KEEN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "KEJU",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "KIJA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "KKGI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "KLBF",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "KOTA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "KPIG",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "LPCK",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "LPKR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "LPPF",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "LSIP",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "LTLS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MAHA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 698
+    },
+    {
+      "ticker": "MAIN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MAPA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MAPI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MARK",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MASB",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MAYA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MBMA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 755
+    },
+    {
+      "ticker": "MBSS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MCOL",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MCOR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MDIY",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 357
+    },
+    {
+      "ticker": "MDKA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MDLA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 288
+    },
+    {
+      "ticker": "MEDC",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MEGA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MERK",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MIDI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MIKA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MKTR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 866
+    },
+    {
+      "ticker": "MLBI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MLPL",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MNCN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MORA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 931
+    },
+    {
+      "ticker": "MPMX",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MSIN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MSTI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 624
+    },
+    {
+      "ticker": "MTDL",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MTEL",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MTLA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MTMH",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "MYOR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "NISP",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "NOBU",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "OMED",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 866
+    },
+    {
+      "ticker": "PALM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PANI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PANS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PBID",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PGAS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PGEO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 789
+    },
+    {
+      "ticker": "PNBN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PNGO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PNIN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PNLF",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PORT",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "POWR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PRAY",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 866
+    },
+    {
+      "ticker": "PRDA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PSGO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PSSI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PTBA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PTPP",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PTRO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "PWON",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "RAAM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 747
+    },
+    {
+      "ticker": "RAJA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "RALS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "RMKE",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SAME",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SAMF",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SCMA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SGER",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SGRO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SHIP",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 967
+    },
+    {
+      "ticker": "SIDO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SILO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SIMP",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SKRN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SMAR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SMBR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SMDR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SMGR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SMIL",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 743
+    },
+    {
+      "ticker": "SMRA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SMSM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SPTO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SRTG",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SSIA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SSMS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "STAA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "SUNI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 822
+    },
+    {
+      "ticker": "TAPG",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TBIG",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TBLA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TEBE",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TINS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TKIM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TLDN",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TLKM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 967
+    },
+    {
+      "ticker": "TMAS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TOBA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TOTL",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TOTO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TOWR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TPIA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TPMA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TRGU",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 952
+    },
+    {
+      "ticker": "TRIM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TSPC",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "TUGU",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "UCID",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "ULTJ",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "UNIC",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "UNTR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "UNVR",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "VICI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "VICO",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "WIIM",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "WINS",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 967
+    },
+    {
+      "ticker": "WOOD",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "WTON",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    },
+    {
+      "ticker": "YUPI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 296
+    }
+  ],
+  "skipped": [],
+  "failed": [],
+  "total": 270,
+  "started_at": "2026-06-30T09:34:23",
+  "finished_at": "2026-06-30T09:36:09"
+}

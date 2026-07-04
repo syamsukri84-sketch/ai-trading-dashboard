@@ -1,0 +1,42 @@
+ANALISIS SENTIMEN PASAR AI TRADING
+Waktu analisis: 2026-07-03 22:48:58
+Engine: TF-IDF + Linear SVM
+Dataset: D:\PROYEK_PYTHON\GEMINI AI1\data\sentiment\processed\financial_news_clean.csv
+Jumlah isu/berita: 179
+
+Bias pasar: MILDLY BULLISH
+Risiko berita: MEDIUM
+Confidence ringkasan: 0.56
+Rata-rata skor: +0.3304
+Komposisi: 96 positif, 5 negatif, 78 netral
+Kesimpulan: Sentimen agak positif, tetapi belum cukup kuat untuk menjadi alasan entry tunggal.
+Catatan trading: Sentimen boleh menjadi faktor pendukung, bukan sinyal utama tanpa konfirmasi harga dan volume.
+
+TOP SENTIMEN POSITIF:
+- ANTM: skor +0.6500, berita 1, dominan POSITIVE
+- BBCA: skor +0.6500, berita 1, dominan POSITIVE
+- GOTO: skor +0.6500, berita 1, dominan POSITIVE
+- LPPF: skor +0.4643, berita 21, dominan POSITIVE
+- BBRI: skor +0.3972, berita 54, dominan POSITIVE
+- SAHAM, IDX, BURSA SAHAM INDONESIA: skor +0.3467, berita 30, dominan POSITIVE
+- SAHAM IHSG HARI INI: skor +0.2817, berita 30, dominan NEUTRAL
+- IHSG: skor +0.1950, berita 10, dominan NEUTRAL
+- SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI: skor +0.1733, berita 30, dominan NEUTRAL
+- TLKM: skor +0.0000, berita 1, dominan NEUTRAL
+
+TOP SENTIMEN NEGATIF:
+- TLKM: skor +0.0000, berita 1, dominan NEUTRAL
+- SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI: skor +0.1733, berita 30, dominan NEUTRAL
+- IHSG: skor +0.1950, berita 10, dominan NEUTRAL
+- SAHAM IHSG HARI INI: skor +0.2817, berita 30, dominan NEUTRAL
+- SAHAM, IDX, BURSA SAHAM INDONESIA: skor +0.3467, berita 30, dominan POSITIVE
+- BBRI: skor +0.3972, berita 54, dominan POSITIVE
+- LPPF: skor +0.4643, berita 21, dominan POSITIVE
+- GOTO: skor +0.6500, berita 1, dominan POSITIVE
+- BBCA: skor +0.6500, berita 1, dominan POSITIVE
+- ANTM: skor +0.6500, berita 1, dominan POSITIVE
+
+DRIVER UTAMA:
+- BBRI | POSITIVE: BBRI mencatat pertumbuhan kredit yang kuat dan laba meningkat signifikan.
+- BBCA | POSITIVE: BBCA tetap stabil dengan kualitas aset yang baik dan optimisme pemulihan ekonomi.
+- ANTM | POSITIVE: Harga komoditas volatil, tetapi permintaan ekspor masih tumbuh.

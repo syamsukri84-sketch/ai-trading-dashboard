@@ -1,0 +1,180 @@
+date,ticker,source,text,label,score,sentiment_score,positive_hits,negative_hits,method
+2026-06-22,BBRI,contoh,BBRI mencatat pertumbuhan kredit yang kuat dan laba meningkat signifikan.,POSITIVE,0.6252,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,BBCA,contoh,BBCA tetap stabil dengan kualitas aset yang baik dan optimisme pemulihan ekonomi.,POSITIVE,0.6292,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,TLKM,contoh,TLKM menghadapi tekanan kompetisi dan risiko penurunan margin.,NEUTRAL,0.6163,0.0,0,0,ml_tfidf_linear_svm
+2026-06-22,ANTM,contoh,"Harga komoditas volatil, tetapi permintaan ekspor masih tumbuh.",POSITIVE,0.6202,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,GOTO,contoh,Investor masih khawatir terhadap rugi bersih dan tekanan pendanaan.,POSITIVE,0.6238,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,BBRI,investor.id,"4 Saham Diterjang, Gelombang Jual Asing Nyaris Rp 70 Triliun - investor.id",POSITIVE,0.6432,0.65,0,0,ml_tfidf_linear_svm
+2026-06-09,BBRI,Pluang,Cara Investasi Saham BRI untuk Pemula: Panduan Lengkap & OJK 2026 - Pluang,NEUTRAL,0.6289,0.0,0,0,ml_tfidf_linear_svm
+2026-06-22,BBRI,detikFinance,"IHSG Bergerak Dua Arah Pagi Ini, Saham Bank Raksasa Kompak Melemah - detikFinance",NEUTRAL,0.6575,0.0,0,0,ml_tfidf_linear_svm
+2026-06-04,BBRI,TradingView,"Saham BBCA dan BBRI Catat Rekor Terlemah 5 Tahun Terakhir, Cek Rekomendasi Analis - TradingView",NEUTRAL,0.6082,0.0,0,0,ml_tfidf_linear_svm
+2026-06-22,BBRI,TradingView,"Cermati Rekomendasi Teknikal Saham CTRA, ASII, BBRI untuk Selasa (23/6) - TradingView",POSITIVE,0.6593,0.65,0,0,ml_tfidf_linear_svm
+2026-06-15,BBRI,investor.id,Saham BBRI Melonjak Gara-gara Ini - investor.id,POSITIVE,0.669,0.65,0,0,ml_tfidf_linear_svm
+2026-06-20,BBRI,kontan.co.id,"Ada BBRI dan ASII, Intip Saham yang Jadi Sasaran Jual Asing Sepekan Terakhir - kontan.co.id",NEUTRAL,0.6378,0.0,0,0,ml_tfidf_linear_svm
+2026-06-18,BBRI,Kompas.com,"Saham BBRI hingga BBCA Kompak Turun, Pasar Menanti Hasil RDG BI - Kompas.com",POSITIVE,0.6747,0.65,0,0,ml_tfidf_linear_svm
+2026-06-10,BBRI,investor.id,"Yang Borong Saham BBRI, Harga Bisa ke Sini - investor.id",POSITIVE,0.6796,0.65,0,0,ml_tfidf_linear_svm
+2026-06-08,BBRI,investor.id,"Saham BBRI Kemurahan Banget, Muncul Penerawangan - investor.id",POSITIVE,0.6805,0.65,0,0,ml_tfidf_linear_svm
+2026-06-18,BBRI,investor.id,Saham BBRI Disorot - investor.id,POSITIVE,0.7064,0.65,0,0,ml_tfidf_linear_svm
+2026-06-17,BBRI,investor.id,Duit Gede Mengalir ke BBRI dan BBCA - investor.id,POSITIVE,0.6705,0.65,0,0,ml_tfidf_linear_svm
+2026-06-17,BBRI,investor.id,Situasi di Saham BBRI Mendadak Berubah - investor.id,POSITIVE,0.689,0.65,0,0,ml_tfidf_linear_svm
+2026-06-20,BBRI,KabarBursa.com,"Big Banks Sepekan: BBCA Akumulasi Asing, BBRI-BMRI Kehilangan Momentum - KabarBursa.com",POSITIVE,0.6359,0.65,0,0,ml_tfidf_linear_svm
+2026-06-18,BBRI,Bloomberg Technoz,"Investor Asing Net Buy Rp2 T, Saham BBRI dan BBCA Diborong - Bloomberg Technoz",POSITIVE,0.6578,0.65,0,0,ml_tfidf_linear_svm
+2026-06-09,BBRI,Bloomberg Technoz,"Saham BBRI Melonjak 6%, Dorong IHSG Melesat - Market - Bloomberg Technoz",POSITIVE,0.6565,0.65,0,0,ml_tfidf_linear_svm
+2026-06-20,BBRI,kontan.co.id,"Cek Rekomendasi Saham Danantara: ANTM, TINS, BBRI, TLKM Bisa Jadi Pilihan - kontan.co.id",NEUTRAL,0.64,0.0,0,0,ml_tfidf_linear_svm
+2026-04-08,BBRI,maybanktrade.co.id,Target Saham BBRI 2026: Intip Bocoran Dividen dan Rekomendasi - maybanktrade.co.id,POSITIVE,0.6465,0.65,0,0,ml_tfidf_linear_svm
+2026-06-03,BBRI,investor.id,Saham BBRI Berbalik - investor.id,POSITIVE,0.7064,0.65,0,0,ml_tfidf_linear_svm
+2026-06-02,BBRI,investor.id,Saham BBRI Bisa-bisa Jadi Segini - investor.id,POSITIVE,0.6783,0.65,0,0,ml_tfidf_linear_svm
+2026-06-12,BBRI,pasardana.id,"BRI Gelontorkan Rp500 Miliar untuk Buyback, Akankah Saham BBRI Rebound? - pasardana.id",POSITIVE,0.6496,0.65,0,0,ml_tfidf_linear_svm
+2026-06-17,BBRI,Bisnis Indonesia Premium,"Beda Arah Investor Asing di Saham BUMI, BRMS, TPIA, BBRI Hingga BBCA - Bisnis Indonesia Premium",POSITIVE,0.6646,0.65,0,0,ml_tfidf_linear_svm
+2026-04-21,BBRI,Ajaib,"BBRI Masuki Periode Ex-Date Dividen, Apa yang Perlu Diketahui Investor? - Ajaib",NEUTRAL,0.648,0.0,0,0,ml_tfidf_linear_svm
+2026-04-20,BBRI,Ajaib,"Dividen BBRI Cum Date Hari Ini, Berapa Bagian Direksi dan Publik? - Ajaib",NEUTRAL,0.668,0.0,0,0,ml_tfidf_linear_svm
+2026-06-17,BBRI,KabarBursa.com,"BBCA dan BBRI Topang Sesi I, Value dan Volumenya Melejit - KabarBursa.com",POSITIVE,0.6356,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,BBRI,manual,BBRI,POSITIVE,0.6971,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,BBRI,Mitrapost.com,"5 Saham yang Berpotensi Bergerak Signifikan Selasa Besok, Apa Aja? - Mitrapost.com",NEUTRAL,0.6438,0.0,0,0,ml_tfidf_linear_svm
+2026-05-08,BBRI,Ajaib,"Lo Kheng Hong Kantongi Dividen Jumbo dari Saham BBRI, Nilainya Diperkirakan Tembus Rp26 Miliar! - Ajaib",POSITIVE,0.6683,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,BBRI,investor.id,Asing Mendadak Buang 3 Saham Ini - investor.id,NEUTRAL,0.6204,0.0,0,0,ml_tfidf_linear_svm
+2026-06-21,BBRI,Kompasiana.com,BBRI di Tengah Tekanan Ekonomi: Masih Layak Jadi Andalan Investor? - Kompasiana.com - Kompasiana.com,POSITIVE,0.6609,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,BBRI,Akses.co.id,"IHSG Melemah ke 6.116, Simak Rekomendasi Saham CTRA, ASII, dan BBRI - Akses.co.id",POSITIVE,0.6379,0.65,0,0,ml_tfidf_linear_svm
+2026-06-05,BBRI,Kompas.com,"Saham BBCA dan BBRI Jatuh ke Level Terendah 5 Tahun, Saatnya Beli? - Kompas.com",POSITIVE,0.6645,0.65,0,0,ml_tfidf_linear_svm
+2026-06-12,BBRI,IDNFinancials.com,BBRI buyback saham Rp500 miliar untuk program MESOP - IDNFinancials.com,POSITIVE,0.6712,0.65,0,0,ml_tfidf_linear_svm
+2026-02-28,LPPF,Emitennews.com,"Sudahi 2025, LPPF Tabulasi Laba Rp725,38 Miliar - Emitennews.com",POSITIVE,0.6762,0.65,0,0,ml_tfidf_linear_svm
+2026-04-22,LPPF,TradingView,"Hari Ini (23/4) Cum Dividen Saham LPPF Yield setara 6x Bunga Bank, Apakah Layak Beli? - TradingView",POSITIVE,0.6179,0.65,0,0,ml_tfidf_linear_svm
+2026-03-04,LPPF,Ajaib,"Matahari Siapkan Dividen Jadi Rp250 per Saham, Apa Artinya? - Ajaib",NEUTRAL,0.6627,0.0,0,0,ml_tfidf_linear_svm
+2026-04-22,LPPF,Bareksa.com,"LPPF Ganti Nama Jadi MDS Retailing, Matahari Buka Babak Baru Bisnis Ritel Multi-Konsep - Bareksa.com",NEUTRAL,0.6326,0.0,0,0,ml_tfidf_linear_svm
+2025-10-30,LPPF,IDNFinancials.com,"Penjualan eceran dan konsinyasi turun, laba LPPF turun 3,39% - IDNFinancials.com",POSITIVE,0.6557,0.65,0,0,ml_tfidf_linear_svm
+2026-03-05,LPPF,CNBC Indonesia,"Laba Anjlok, Matahari (LPPF) Mau Bagi Dividen Rp250 per Saham - CNBC Indonesia",POSITIVE,0.6219,0.65,0,0,ml_tfidf_linear_svm
+2026-04-17,LPPF,KONTAN,Matahari Department Store (LPPF) Akan Berganti Nama dan Menyebar Dividen Final - KONTAN,NEUTRAL,0.6288,0.0,0,0,ml_tfidf_linear_svm
+2026-03-02,LPPF,Investing.com Indonesia,"Penjualan Lesu, Laba Matahari Department Store (LPPF) Turun 12,35% di 2025 Oleh Warta Ekonomi - Investing.com Indonesia",POSITIVE,0.6755,0.65,0,0,ml_tfidf_linear_svm
+2026-04-17,LPPF,Emitennews.com,"LPPF Beber Jadwal Dividen Rp725 Miliar, Yield 12,98 Persen - Emitennews.com",POSITIVE,0.6595,0.65,0,0,ml_tfidf_linear_svm
+2026-03-09,LPPF,IDX Channel,"Matahari (LPPF) Jadwalkan RUPS Pertengahan April 2026, Bakal Bagi Dividen Jumbo? - IDX Channel",POSITIVE,0.6581,0.65,0,0,ml_tfidf_linear_svm
+2026-06-23,LPPF,manual,LPPF,POSITIVE,0.6596,0.65,0,0,ml_tfidf_linear_svm
+2026-04-17,LPPF,Ajaib,"Matahari (LPPF) Siap Bagi Dividen Rp250 per Saham, Catat Jadwalnya! - Ajaib",NEUTRAL,0.6254,0.0,0,0,ml_tfidf_linear_svm
+2026-04-17,LPPF,IDNFinancials.com,"Matahari Department Store bagi dividen, yield bisa capai 12,9% - IDNFinancials.com",POSITIVE,0.6469,0.65,0,0,ml_tfidf_linear_svm
+2026-04-21,LPPF,TradingView,"Besok (23/4) Cum Date, Dividen Yield Saham LPPF 12,66%, 1 Lot Dapat Rp 25.000 - TradingView",NEUTRAL,0.6343,0.0,0,0,ml_tfidf_linear_svm
+2026-04-17,LPPF,Bareksa.com,LPPF Bagi Dividen Rp250 per Saham! Yield-nya Segini - Bareksa.com,NEUTRAL,0.6109,0.0,0,0,ml_tfidf_linear_svm
+2026-04-17,LPPF,FAC Sekuritas,FAC Sekuritas - FAC Sekuritas,POSITIVE,0.6434,0.65,0,0,ml_tfidf_linear_svm
+2026-04-17,LPPF,CNBC Indonesia,"Matahari (LPPF) Tebar Dividen Jumbo, Yield Sampai 12,9% - CNBC Indonesia",POSITIVE,0.6637,0.65,0,0,ml_tfidf_linear_svm
+2026-04-17,LPPF,Investing.com Indonesia,"Matahari Department Store (LPPF) Siap Guyur Dividen Rp556,8 Miliar, Cek Jadwalnya! Oleh Warta Ekonomi - Investing.com Indonesia",POSITIVE,0.6583,0.65,0,0,ml_tfidf_linear_svm
+2026-02-27,LPPF,Indo Premier Sekuritas,Financial Statements Full Year 2025 of LPPF - Indo Premier Sekuritas,POSITIVE,0.6572,0.65,0,0,ml_tfidf_linear_svm
+2026-04-29,LPPF,IDX Channel,MDS Retailing (LPPF) Kantongi Laba Bersih Rp692 Miliar di Kuartal I-2026 - IDX Channel,POSITIVE,0.6647,0.65,0,0,ml_tfidf_linear_svm
+2026-04-23,LPPF,KONTAN,Transformasi LPPF Berpeluang Memoles Kinerja di Tahun 2026 - KONTAN,POSITIVE,0.6493,0.65,0,0,ml_tfidf_linear_svm
+2026-06-23,BBRI,investor.id,"Saham BBRI Diserok, Bisa Segini Harganya - investor.id",POSITIVE,0.6847,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,BBRI,kontan.co.id,"Simak Rekomendasi Saham Teknikal CTRA, ASII dan BBRI untuk Hari Ini (23/6) - kontan.co.id",NEUTRAL,0.6118,0.0,0,0,ml_tfidf_linear_svm
+2026-06-23,BBRI,Kompas.com,"IHSG Rawan Koreksi, Saham ISAT, NCKL, ASII hingga BBRI Bisa Cuan - Kompas.com",POSITIVE,0.6665,0.65,0,0,ml_tfidf_linear_svm
+2026-05-19,BBRI,Pluang,"Saham BBRI 2026: Potensi Cuan 40%, Dividen, dan Panduan Lengkap - Pluang",POSITIVE,0.644,0.65,0,0,ml_tfidf_linear_svm
+2026-06-04,BBRI,TradingView,"Investor Asing Kabur, Saham BBCA & BBRI Terjun Bebas: Saatnya Beli? - TradingView",POSITIVE,0.6646,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,BBRI,KabarBursa.com,"Asing Masih Jual Big Bank, BBRI Kehilangan Rp127,29 miliar, BBCA? - KabarBursa.com",NEGATIVE,0.6736,-0.65,0,0,ml_tfidf_linear_svm
+2026-06-18,BBRI,Indo Premier Sekuritas,Kepemilikan Saham Mei 2026 BBRI - Indo Premier Sekuritas,POSITIVE,0.6719,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,BBRI,Akses.co.id,Analis Rekomendasikan Saham CTRA ASII dan BBRI Saat IHSG Melemah - Akses.co.id,POSITIVE,0.6495,0.65,0,0,ml_tfidf_linear_svm
+2026-06-10,BBRI,IDNFinancials.com,Puluhan ribu investor masuk saham bank jumbo saat harga turun - IDNFinancials.com,POSITIVE,0.6554,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,BBRI,kontan.co.id,"Cermati Rekomendasi Teknikal Saham CTRA, ASII, BBRI untuk Selasa (23/6) - kontan.co.id",POSITIVE,0.6427,0.65,0,0,ml_tfidf_linear_svm
+2025-12-17,"SAHAM, IDX, BURSA SAHAM INDONESIA",PT Bursa Efek Indonesia,Seremoni Pencatatan Perdana Saham PT Super Bank Indonesia Tbk (SUPA) di Bursa Efek Indonesia - PT Bursa Efek Indonesia,POSITIVE,0.6764,0.65,0,0,ml_tfidf_linear_svm
+2026-06-23,"SAHAM, IDX, BURSA SAHAM INDONESIA",investor.id,"Saham Melejit 94,2% Masuk UMA - investor.id",POSITIVE,0.6443,0.65,0,0,ml_tfidf_linear_svm
+2026-06-02,"SAHAM, IDX, BURSA SAHAM INDONESIA",Pluang,Cara Investasi Saham BCA: Panduan Lengkap Beli Saham BBCA 2026 - Pluang,POSITIVE,0.6195,0.65,0,0,ml_tfidf_linear_svm
+2026-04-09,"SAHAM, IDX, BURSA SAHAM INDONESIA",TradingView,"IDX Basic Materials Tumbuh Positif di Tengah Gejolak, Cek Saham Rekomendasi Analis - TradingView",POSITIVE,0.6616,0.65,0,0,ml_tfidf_linear_svm
+2026-06-02,"SAHAM, IDX, BURSA SAHAM INDONESIA",Ajaib,"Daftar Saham yang Didepak FTSE Russell Terbaru, GOTO hingga NCKL Keluar dari Indeks Global - Ajaib",POSITIVE,0.6291,0.65,0,0,ml_tfidf_linear_svm
+2026-03-03,"SAHAM, IDX, BURSA SAHAM INDONESIA",PT Bursa Efek Indonesia,BEI Resmi Buka Akses Data Kepemilikan Saham di Atas 1 Persen - PT Bursa Efek Indonesia,POSITIVE,0.6669,0.65,0,0,ml_tfidf_linear_svm
+2026-05-06,"SAHAM, IDX, BURSA SAHAM INDONESIA",Humas Indonesia,"Tingkatkan Komunikasi dengan Investor, BEI Rilis Kanal IDX Hotdesk - Humas Indonesia",POSITIVE,0.6525,0.65,0,0,ml_tfidf_linear_svm
+2026-06-03,"SAHAM, IDX, BURSA SAHAM INDONESIA",Pintu,"Berkilau Tapi Loyo, Saham EMAS di IDX Anjlok 7% ke Level Rp6.975 Hari Ini (3/6/25)! - Pintu",POSITIVE,0.6217,0.65,0,0,ml_tfidf_linear_svm
+2026-04-24,"SAHAM, IDX, BURSA SAHAM INDONESIA",pasardana.id,BEI Hentikan Sementara Perdagangan Saham BAIK dan WBSA - pasardana.id,NEUTRAL,0.6611,0.0,0,0,ml_tfidf_linear_svm
+2025-11-24,"SAHAM, IDX, BURSA SAHAM INDONESIA",unnes.ac.id,Sekolah Pasar Modal dari IDX - unnes.ac.id,POSITIVE,0.6459,0.65,0,0,ml_tfidf_linear_svm
+2026-05-05,"SAHAM, IDX, BURSA SAHAM INDONESIA",Bareksa.com,"BEI Luncurkan IDX Hotdesk, Perkuat Transparansi dan Komunikasi Pasar Modal - Bareksa.com",POSITIVE,0.6463,0.65,0,0,ml_tfidf_linear_svm
+2026-02-26,"SAHAM, IDX, BURSA SAHAM INDONESIA",Pluang,"Investasi Saham Indonesia di Pluang | Pluang – Kripto, Saham, Emas & Reksa Dana - Pluang",POSITIVE,0.6378,0.65,0,0,ml_tfidf_linear_svm
+2026-02-19,"SAHAM, IDX, BURSA SAHAM INDONESIA",TradingView,"Saham Valuasi Murah Ini Jadi Incaran Investor, Cek Pilihan Sahamnya dari IDX Value30 - TradingView",NEUTRAL,0.6427,0.0,0,0,ml_tfidf_linear_svm
+2025-10-17,"SAHAM, IDX, BURSA SAHAM INDONESIA",PT Bursa Efek Indonesia,Capital Market Summit & Expo 2025 - PT Bursa Efek Indonesia,POSITIVE,0.6685,0.65,0,0,ml_tfidf_linear_svm
+2026-05-21,"SAHAM, IDX, BURSA SAHAM INDONESIA",Pluang,"Contoh Saham Bagus di BEI: Indikator, Data, dan Tips Memilih 2026 - Pluang",NEUTRAL,0.6448,0.0,0,0,ml_tfidf_linear_svm
+2026-04-23,"SAHAM, IDX, BURSA SAHAM INDONESIA",TradingView,"IDX Value30 Tahan Banting di Tengah Gejolak Pasar, Simak Rekomendasi Analis - TradingView",POSITIVE,0.6546,0.65,0,0,ml_tfidf_linear_svm
+2026-05-21,"SAHAM, IDX, BURSA SAHAM INDONESIA",Pluang,"Apa Itu IPO Saham? Pengertian, Cara Pilih, Risiko, dan Cara Beli 2026 - Pluang",NEUTRAL,0.6608,0.0,0,0,ml_tfidf_linear_svm
+2025-09-01,"SAHAM, IDX, BURSA SAHAM INDONESIA",PT Bursa Efek Indonesia,Public Expose Live 2026 - PT Bursa Efek Indonesia,POSITIVE,0.6654,0.65,0,0,ml_tfidf_linear_svm
+2026-05-28,"SAHAM, IDX, BURSA SAHAM INDONESIA",Pluang,"Saham Astra ASII: Profil, Dividen & Cara Beli Terpercaya 2026 - Pluang",NEUTRAL,0.6492,0.0,0,0,ml_tfidf_linear_svm
+2026-05-21,"SAHAM, IDX, BURSA SAHAM INDONESIA",Pluang,Saham Grup Djarum di BEI: Panduan Lengkap & Terpercaya 2026 - Pluang,NEUTRAL,0.6373,0.0,0,0,ml_tfidf_linear_svm
+2026-02-11,"SAHAM, IDX, BURSA SAHAM INDONESIA",pasardana.id,"Suspensi Perdagangan Saham LION, STAR, IBOS, dan ENZO Kembali Dibuka - pasardana.id",NEUTRAL,0.6568,0.0,0,0,ml_tfidf_linear_svm
+2026-02-20,"SAHAM, IDX, BURSA SAHAM INDONESIA",pasardana.id,Pola Transaksi Saham MYTX dan PART Masuk UMA - pasardana.id,NEUTRAL,0.6733,0.0,0,0,ml_tfidf_linear_svm
+2026-04-23,"SAHAM, IDX, BURSA SAHAM INDONESIA",pasardana.id,"Pola Transaksi Saham DEPO, BOBA, dan CTTH Masuk UMA - pasardana.id",NEUTRAL,0.6714,0.0,0,0,ml_tfidf_linear_svm
+2026-04-27,"SAHAM, IDX, BURSA SAHAM INDONESIA",Ajaib,Daftar Saham LQ45 Terbaru Mei 2026: Perubahan Komposisi dan Dampaknya bagi Investor - Ajaib,POSITIVE,0.6369,0.65,0,0,ml_tfidf_linear_svm
+2026-03-25,"SAHAM, IDX, BURSA SAHAM INDONESIA",Majalah TAMBANG,Merdeka Gold Resources Siap Melantai di Bursa Efek Hong Kong - Majalah TAMBANG,POSITIVE,0.6507,0.65,0,0,ml_tfidf_linear_svm
+2026-04-09,"SAHAM, IDX, BURSA SAHAM INDONESIA",pasardana.id,Pola Transaksi Saham KUAS Masuk UMA - pasardana.id,NEUTRAL,0.6753,0.0,0,0,ml_tfidf_linear_svm
+2026-05-12,"SAHAM, IDX, BURSA SAHAM INDONESIA",InvestasiKu,"Klasifikasi IDX-IC: Pengertian, Perbedaan dengan JASICA, Daftar Sektor, dan Contoh Saham - InvestasiKu",NEUTRAL,0.6384,0.0,0,0,ml_tfidf_linear_svm
+2025-09-19,"SAHAM, IDX, BURSA SAHAM INDONESIA",TradingView,Chart dan Harga Saham EMAS — IDX:EMAS - TradingView,NEUTRAL,0.6167,0.0,0,0,ml_tfidf_linear_svm
+2026-01-06,"SAHAM, IDX, BURSA SAHAM INDONESIA",pasardana.id,"Pola Transaksi Saham AHAP, BNBA, dan ASJT Masuk UMA - pasardana.id",NEUTRAL,0.6714,0.0,0,0,ml_tfidf_linear_svm
+2026-02-11,"SAHAM, IDX, BURSA SAHAM INDONESIA",pasardana.id,"BEI Hentikan Sementara Perdagangan Saham EDGE, EURO, dan NZIA - pasardana.id",NEUTRAL,0.6664,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,IHSG,CNBC Indonesia,"Breaking! IHSG Anjlok 3% Lebih, 590 Saham Merah - CNBC Indonesia",POSITIVE,0.6475,0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,IHSG,Bareksa.com,"Rekomendasi Saham Tim Analis Bareksa: MAPI & ESSA, IHSG Diprediksi Menguat - Bareksa.com",POSITIVE,0.6357,0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,IHSG,InvestorTrust,"IHSG Anjlok Parah 3,22% di Sesi II, Saham Emiten Prajogo BREN dan TPIA Turun Parah - InvestorTrust",NEUTRAL,0.6362,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,IHSG,maybanktrade.co.id,Update MSCI 2026: Isu Downgrade dan Arah IHSG - maybanktrade.co.id,NEUTRAL,0.6528,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,IHSG,IDNFinancials.com,"IHSG ambles 3,56% imbas putusan MSCI, rupiah mendekati Rp18.000 - IDNFinancials.com",NEGATIVE,0.6777,-0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,IHSG,investor.id,"Prediksi IHSG dan Rekomendasi Saham Kamis, 25 Juni 2026 - investor.id",POSITIVE,0.6504,0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,IHSG,Listrik Indonesia,"IHSG Hari Ini Rebound ke 6.122, Saham Energi Belum Kompak - Listrik Indonesia",NEUTRAL,0.6539,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,IHSG,detikFinance,"Biang Kerok IHSG Anjlok 3,56% Meski RI Tetap di Emerging Market - detikFinance",NEUTRAL,0.6184,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,IHSG,TopBusiness.id,"IHSG Tersungkur, Aksi Jual Massal Seret Saham-Saham Unggulan - TopBusiness.id",NEUTRAL,0.6306,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,IHSG,IDNFinancials.com,"Asing outlow hampir Rp1 triliun, IHSG terseret turun 1,62% - IDNFinancials.com",POSITIVE,0.6587,0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,BBRI,Kompas.id,"IHSG Anjlok 3 Persen, Tekanan Rupiah dan MSCI Diduga Jadi Penyebab - Kompas.id",NEGATIVE,0.6776,-0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,BBRI,20detik,"Video: Perang Mereda Tapi IHSG Belum Pulih, Ada Apa? - 20detik",NEUTRAL,0.6534,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,BBRI,maybanktrade.co.id,Update MSCI 2026: Isu Downgrade dan Arah IHSG - maybanktrade.co.id,NEUTRAL,0.6528,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,BBRI,IDNFinancials.com,"IHSG ambles 3,56% imbas putusan MSCI, rupiah mendekati Rp18.000 - IDNFinancials.com",NEGATIVE,0.6777,-0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,BBRI,InvestorTrust,"Sejumlah Faktor Ini Picu IHSG Turun Parah 3,56% Hari Ini - InvestorTrust",NEUTRAL,0.6796,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,BBRI,ANTARA News Jambi,"Pengamat: IHSG turun 3 persen imbas sinyal ""hawkish"" suku bunga global - ANTARA News Jambi",POSITIVE,0.6293,0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,BBRI,CNN Indonesia,"IHSG Ambruk 3,56 Persen ke 5.883 Rabu Sore - CNN Indonesia",POSITIVE,0.6466,0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,BBRI,detikFinance,"Biang Kerok IHSG Anjlok 3,56% Meski RI Tetap di Emerging Market - detikFinance",NEUTRAL,0.6184,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,BBRI,Bloomberg Technoz,"IHSG ke Bawah 5.900, Terbeban Saham-saham Ini - Bloomberg Technoz",NEUTRAL,0.6665,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,BBRI,pasardana.id,ANALIS MARKET (25/6/2026): IHSG Berpotensi Melanjutkan Penurunan - pasardana.id,POSITIVE,0.6313,0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,SAHAM IHSG HARI INI,CNBC Indonesia,"Rupiah dan IHSG Hari Ini Hadapi Ujian Berat dari AS, Ada Apa Lagi? - CNBC Indonesia",NEUTRAL,0.66,0.0,0,0,ml_tfidf_linear_svm
+2026-06-22,SAHAM IHSG HARI INI,Kompas.id,"Melemah Lagi, IHSG Dihantui Sentimen Geopolitik dan Keputusan Final MSCI - Kompas.id",NEUTRAL,0.6293,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,SAHAM IHSG HARI INI,Listrik Indonesia,"IHSG Hari Ini Rebound ke 6.122, Saham Energi Belum Kompak - Listrik Indonesia",NEUTRAL,0.6539,0.0,0,0,ml_tfidf_linear_svm
+2026-06-08,SAHAM IHSG HARI INI,Pegadaian,Penyebab IHSG Anjlok: Faktor Utama dan Cara Menghadapinya - Pegadaian,NEUTRAL,0.6549,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,SAHAM IHSG HARI INI,KabarBursa.com,"Jelang Putusan MSCI 24 Juni 2026, IPOT Beberkan Sentimen Penentu Arah Pasar - KabarBursa.com",NEUTRAL,0.6231,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,SAHAM IHSG HARI INI,CNBC Indonesia,"Breaking! IHSG Anjlok 3% Lebih, 590 Saham Merah - CNBC Indonesia",POSITIVE,0.6475,0.65,0,0,ml_tfidf_linear_svm
+2026-06-09,SAHAM IHSG HARI INI,Ajaib,"IHSG Bangkit Usai Empat Hari Tertekan, TLKM dan BRPT Pimpin Daftar Top Gainers! - Ajaib",POSITIVE,0.6184,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,SAHAM IHSG HARI INI,Koran Jakarta ®,"Dibuka Menguat, IHSG Hari Ini Diprediksi Datar Seiring Pasar Cermati Sentimen Domestik-Global - Koran Jakarta ®",NEUTRAL,0.6681,0.0,0,0,ml_tfidf_linear_svm
+2026-06-08,SAHAM IHSG HARI INI,KONTAN,"Awal Pekan, Sentimen Domestik Bikin Pasar Suram, Simak Rekomendasi Saham Hari Ini - KONTAN",NEUTRAL,0.642,0.0,0,0,ml_tfidf_linear_svm
+2026-06-08,SAHAM IHSG HARI INI,Bloomberg Technoz,Arah IHSG Hari Ini: Masih Berisiko Terkoreksi ke 5.300 - Market - Bloomberg Technoz,NEUTRAL,0.6564,0.0,0,0,ml_tfidf_linear_svm
+2026-06-17,SAHAM IHSG HARI INI,Kompas.id,Reli IHSG Tertahan Sentimen The Fed hingga MSCI - Kompas.id,POSITIVE,0.6389,0.65,0,0,ml_tfidf_linear_svm
+2026-06-23,SAHAM IHSG HARI INI,Listrik Indonesia,"IHSG Hari Ini Loyo, Saham Energi Campur Aduk - Listrik Indonesia",NEUTRAL,0.6505,0.0,0,0,ml_tfidf_linear_svm
+2026-06-18,SAHAM IHSG HARI INI,Ajaib,"IHSG Bergerak Fluktuatif Jelang Review MSCI dan Keputusan BI, Ini yang Perlu Dicermati! - Ajaib",NEUTRAL,0.6613,0.0,0,0,ml_tfidf_linear_svm
+2026-05-22,SAHAM IHSG HARI INI,Ajaib,"IHSG Hari Ini Ditutup Rebound 1,1%, Ini Sentimen Pendorongnya - Ajaib",NEUTRAL,0.6863,0.0,0,0,ml_tfidf_linear_svm
+2026-06-18,SAHAM IHSG HARI INI,Listrik Indonesia,"IHSG Hari Ini Anjlok, Bagaimana Nasib Saham Energi? - Listrik Indonesia",NEUTRAL,0.6586,0.0,0,0,ml_tfidf_linear_svm
+2026-06-23,SAHAM IHSG HARI INI,CNBC Indonesia,"Menunggu Pengumuman MSCI, IHSG Dibuka Turun 0,3% - CNBC Indonesia",NEUTRAL,0.6284,0.0,0,0,ml_tfidf_linear_svm
+2026-06-04,SAHAM IHSG HARI INI,CNBC Indonesia,"IHSG-Rupiah Sudah Berdarah-darah, Hari Ini Bakal Lebih Menegangkan? - CNBC Indonesia",POSITIVE,0.625,0.65,0,0,ml_tfidf_linear_svm
+2026-06-03,SAHAM IHSG HARI INI,CNBC Indonesia,"Bangkit dari Tekanan, IHSG-Rupiah Hari Ini Diuji 10 Sentimen Besar - CNBC Indonesia",NEUTRAL,0.6281,0.0,0,0,ml_tfidf_linear_svm
+2026-05-25,SAHAM IHSG HARI INI,Kompas.id,Pasar Modal Dibayangi Sentimen Negatif Jelang Akhir Mei - Kompas.id,POSITIVE,0.6496,0.65,0,0,ml_tfidf_linear_svm
+2026-06-15,SAHAM IHSG HARI INI,TopBusiness.id,"IHSG Diproyeksikan Menguat Hari Ini, Ditopang Sentimen Positif Global dan Regional - TopBusiness.id",POSITIVE,0.6399,0.65,0,0,ml_tfidf_linear_svm
+2026-06-09,SAHAM IHSG HARI INI,KONTAN,"Sentimen Negatif Dalam Negeri Terus Menaungi Pasar, Simak Rekomendasi Saham Hari Ini - KONTAN",POSITIVE,0.6099,0.65,0,0,ml_tfidf_linear_svm
+2026-06-12,SAHAM IHSG HARI INI,TopBusiness.id,"IHSG Diproyeksi Menguat Hari Ini, Ditopang Sentimen Positif Bursa Global - TopBusiness.id",POSITIVE,0.6495,0.65,0,0,ml_tfidf_linear_svm
+2026-06-11,SAHAM IHSG HARI INI,TopBusiness.id,"IHSG Diperkirakan Melemah, Sentimen Timur Tengah Tekan Pasar - TopBusiness.id",POSITIVE,0.6369,0.65,0,0,ml_tfidf_linear_svm
+2026-05-19,SAHAM IHSG HARI INI,IDNFinancials.com,Peluang IHSG rebound jelang keputusan BI Rate - IDNFinancials.com,POSITIVE,0.6377,0.65,0,0,ml_tfidf_linear_svm
+2026-06-19,SAHAM IHSG HARI INI,merahputih.com,Analisis IHSG Hari Ini Faktor BI Rate dan Sentimen Transparansi - merahputih.com,NEUTRAL,0.6611,0.0,0,0,ml_tfidf_linear_svm
+2026-06-18,SAHAM IHSG HARI INI,Emitennews.com,"Review MSCI Jadi Penentu Sentimen Pasar dan IHSG, Begini Kata Analis - Emitennews.com",POSITIVE,0.6288,0.65,0,0,ml_tfidf_linear_svm
+2026-06-15,SAHAM IHSG HARI INI,Bloomberg Technoz,"Simak Arah & Prediksi IHSG Hari Ini, Plus Saham Pilihan Pasar - Bloomberg Technoz",NEUTRAL,0.6735,0.0,0,0,ml_tfidf_linear_svm
+2026-06-11,SAHAM IHSG HARI INI,Koran Jakarta ®,"IHSG Hari Ini Dibuka Melemah, Sentimen Pasar Didominasi Perkembangan Timur Tengah - Koran Jakarta ®",NEUTRAL,0.6542,0.0,0,0,ml_tfidf_linear_svm
+2026-06-15,SAHAM IHSG HARI INI,Listrik Indonesia,"IHSG Hari Ini Tembus 6.199, Saham Energi Kompak Menghijau - Listrik Indonesia",POSITIVE,0.5911,0.65,0,0,ml_tfidf_linear_svm
+2026-06-17,SAHAM IHSG HARI INI,Listrik Indonesia,"IHSG Hari Ini Melanjutkan Penguatan, Saham Energi Tunjukkan Kinerja Menarik - Listrik Indonesia",POSITIVE,0.6055,0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Kompas.id,"IHSG Anjlok 3 Persen, Tekanan Rupiah dan MSCI Diduga Jadi Penyebab - Kompas.id",NEGATIVE,0.6776,-0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",CNBC Indonesia,"Rupiah dan IHSG Hari Ini Hadapi Ujian Berat dari AS, Ada Apa Lagi? - CNBC Indonesia",NEUTRAL,0.66,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Listrik Indonesia,"IHSG Hari Ini Rebound ke 6.122, Saham Energi Belum Kompak - Listrik Indonesia",NEUTRAL,0.6539,0.0,0,0,ml_tfidf_linear_svm
+2026-06-23,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",TradingView,"IHSG Tertekan Menjelang MSCI Review, Saham Bank Ini Masih Jadi Pilihan Menarik - TradingView",NEUTRAL,0.6585,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",KONTAN,"MSCI Perpanjang Indonesia di Emerging Market, Cek Proyeksi IHSG Hari Ini - KONTAN",POSITIVE,0.5995,0.65,0,0,ml_tfidf_linear_svm
+2026-06-08,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Pegadaian,Penyebab IHSG Anjlok: Faktor Utama dan Cara Menghadapinya - Pegadaian,NEUTRAL,0.6549,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",CNBC Indonesia,"Breaking! IHSG Anjlok 3% Lebih, 590 Saham Merah - CNBC Indonesia",POSITIVE,0.6475,0.65,0,0,ml_tfidf_linear_svm
+2026-06-23,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",investor.id,IHSG Dihantam Sentimen Negatif Bertubi-tubi - investor.id,POSITIVE,0.6692,0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Infobanknews,"IHSG Dibuka di Zona Hijau, Naik ke Level 6.136 - Infobanknews",POSITIVE,0.6437,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Kompas.id,"Melemah Lagi, IHSG Dihantui Sentimen Geopolitik dan Keputusan Final MSCI - Kompas.id",NEUTRAL,0.6293,0.0,0,0,ml_tfidf_linear_svm
+2026-05-22,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Ajaib,"IHSG Hari Ini Ditutup Rebound 1,1%, Ini Sentimen Pendorongnya - Ajaib",NEUTRAL,0.6863,0.0,0,0,ml_tfidf_linear_svm
+2026-06-23,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Koran Jakarta ®,"IHSG Hari Ini Melemah Tajam, Koreksi Global Seret Pasar Domestik - Koran Jakarta ®",NEUTRAL,0.6631,0.0,0,0,ml_tfidf_linear_svm
+2026-06-23,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Listrik Indonesia,"IHSG Hari Ini Loyo, Saham Energi Campur Aduk - Listrik Indonesia",NEUTRAL,0.6505,0.0,0,0,ml_tfidf_linear_svm
+2026-06-24,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",investor.id,IHSG Dihantam Sentimen Global dan Bayang-bayang MSCI - investor.id,POSITIVE,0.6558,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Koran Jakarta ®,"Dibuka Menguat, IHSG Hari Ini Diprediksi Datar Seiring Pasar Cermati Sentimen Domestik-Global - Koran Jakarta ®",NEUTRAL,0.6681,0.0,0,0,ml_tfidf_linear_svm
+2026-06-18,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Listrik Indonesia,"IHSG Hari Ini Anjlok, Bagaimana Nasib Saham Energi? - Listrik Indonesia",NEUTRAL,0.6586,0.0,0,0,ml_tfidf_linear_svm
+2026-06-23,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",CNBC Indonesia,"Menunggu Pengumuman MSCI, IHSG Dibuka Turun 0,3% - CNBC Indonesia",NEUTRAL,0.6284,0.0,0,0,ml_tfidf_linear_svm
+2026-06-22,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",CNBC Indonesia,"IHSG Terkoreksi 0,98% di Awal Pekan, 445 Saham Merah - CNBC Indonesia",POSITIVE,0.6448,0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Bisnis.com,"Didorong Sentimen MSCI, IHSG Dibuka Hijau Saham BBCA & MORA Cs Melesat - Bisnis.com",POSITIVE,0.6368,0.65,0,0,ml_tfidf_linear_svm
+2026-06-22,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",merahputih.com,"IHSG Hari Ini Anjlok 1,25 Jelang Pengumuman MSCI Review - merahputih.com",NEUTRAL,0.6847,0.0,0,0,ml_tfidf_linear_svm
+2026-05-19,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",IDNFinancials.com,Peluang IHSG rebound jelang keputusan BI Rate - IDNFinancials.com,POSITIVE,0.6377,0.65,0,0,ml_tfidf_linear_svm
+2026-06-24,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Media Indonesia,IHSG Hari Ini 24 Juni 2026: Dibuka Menguat ke 6.112 - Media Indonesia,NEUTRAL,0.6696,0.0,0,0,ml_tfidf_linear_svm
+2026-04-17,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",maybanktrade.co.id,OJK Temui MSCI? IHSG Hari ini & Prospek Saham Pilihan - maybanktrade.co.id,NEUTRAL,0.6871,0.0,0,0,ml_tfidf_linear_svm
+2026-06-11,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Listrik Indonesia,"IHSG Hari Ini Kembali Menguat, Saham Energi Ikut Terdongkrak - Listrik Indonesia",NEUTRAL,0.657,0.0,0,0,ml_tfidf_linear_svm
+2026-04-09,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",maybanktrade.co.id,IHSG Hari Ini: Dampak MSCI & FTSE serta Prospek WIFI - maybanktrade.co.id,NEUTRAL,0.666,0.0,0,0,ml_tfidf_linear_svm
+2026-05-22,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Ajaib,"IHSG Jatuh 2% ke Bawah Level 6.000, Ini Faktor Penyebabnya! - Ajaib",NEUTRAL,0.6586,0.0,0,0,ml_tfidf_linear_svm
+2026-03-10,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Ajaib,"IHSG Hari Ini Menguat, Ini Penyebabnya dan Deretan Saham yang Melejit - Ajaib",NEUTRAL,0.6803,0.0,0,0,ml_tfidf_linear_svm
+2026-03-31,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Ajaib,Apa Penyebab IHSG Turun Hari Ini! Simak Faktor Utamanya! - Ajaib,NEUTRAL,0.6792,0.0,0,0,ml_tfidf_linear_svm
+2026-03-25,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Ajaib,"IHSG Hari Ini Ditutup Menguat 2,75% ke 7.302, Rebound dari Zona Merah - Ajaib",NEUTRAL,0.6662,0.0,0,0,ml_tfidf_linear_svm
+2026-03-17,"SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI",Ajaib,"IHSG Menguat Jelang Libur Panjang, Momentum Akumulasi atau Waspada Koreksi? - Ajaib",POSITIVE,0.6366,0.65,0,0,ml_tfidf_linear_svm

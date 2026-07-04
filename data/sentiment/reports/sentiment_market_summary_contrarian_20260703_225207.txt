@@ -1,0 +1,44 @@
+ANALISIS SENTIMEN PASAR AI TRADING - MODE KONTRARIAN INDONESIA
+Waktu analisis: 2026-07-03 22:52:06
+Engine: TF-IDF + Linear SVM
+Dataset: D:\PROYEK_PYTHON\GEMINI AI1\data\sentiment\processed\financial_news_clean.csv
+Jumlah isu/berita: 204
+
+Mode interpretasi: contrarian_indonesia
+Rata-rata tone berita: +0.3409
+Skor sinyal pasar kontrarian: -0.3409
+Bias trading kontrarian: CAUTIOUS
+Risiko berita: MEDIUM
+Confidence ringkasan: 0.57
+Komposisi tone berita: 113 positif, 6 negatif, 85 netral
+Kesimpulan: Berita agak positif, tetapi secara kontrarian belum memberi margin of safety yang menarik.
+Catatan trading: Waspadai euforia berita; prioritaskan saham yang masih punya risk-reward dan reliability kuat.
+
+TOP TONE BERITA PALING POSITIF, DIBACA WASPADA SECARA KONTRARIAN:
+- BBCA: tone +0.6500, sinyal kontrarian -0.6500, berita 6, dominan POSITIVE
+- GOTO: tone +0.6500, sinyal kontrarian -0.6500, berita 1, dominan POSITIVE
+- ANTM: tone +0.5417, sinyal kontrarian -0.5417, berita 6, dominan POSITIVE
+- LPPF: tone +0.4643, sinyal kontrarian -0.4643, berita 21, dominan POSITIVE
+- BBRI: tone +0.4076, sinyal kontrarian -0.4076, berita 59, dominan POSITIVE
+- SAHAM, IDX, BURSA SAHAM INDONESIA: tone +0.3467, sinyal kontrarian -0.3467, berita 30, dominan POSITIVE
+- SAHAM IHSG HARI INI: tone +0.2817, sinyal kontrarian -0.2817, berita 30, dominan NEUTRAL
+- IHSG: tone +0.2167, sinyal kontrarian -0.2167, berita 15, dominan POSITIVE
+- SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI: tone +0.1733, sinyal kontrarian -0.1733, berita 30, dominan NEUTRAL
+- TLKM: tone +0.1083, sinyal kontrarian -0.1083, berita 6, dominan NEUTRAL
+
+TOP TONE BERITA PALING NEGATIF, DIBACA PELUANG REBOUND SECARA KONTRARIAN:
+- TLKM: tone +0.1083, sinyal kontrarian -0.1083, berita 6, dominan NEUTRAL
+- SAHAM IHSG HARI INI,SENTIMEN PASAR IHSG HARI INI: tone +0.1733, sinyal kontrarian -0.1733, berita 30, dominan NEUTRAL
+- IHSG: tone +0.2167, sinyal kontrarian -0.2167, berita 15, dominan POSITIVE
+- SAHAM IHSG HARI INI: tone +0.2817, sinyal kontrarian -0.2817, berita 30, dominan NEUTRAL
+- SAHAM, IDX, BURSA SAHAM INDONESIA: tone +0.3467, sinyal kontrarian -0.3467, berita 30, dominan POSITIVE
+- BBRI: tone +0.4076, sinyal kontrarian -0.4076, berita 59, dominan POSITIVE
+- LPPF: tone +0.4643, sinyal kontrarian -0.4643, berita 21, dominan POSITIVE
+- ANTM: tone +0.5417, sinyal kontrarian -0.5417, berita 6, dominan POSITIVE
+- GOTO: tone +0.6500, sinyal kontrarian -0.6500, berita 1, dominan POSITIVE
+- BBCA: tone +0.6500, sinyal kontrarian -0.6500, berita 6, dominan POSITIVE
+
+DRIVER UTAMA:
+- BBRI | POSITIVE: BBRI mencatat pertumbuhan kredit yang kuat dan laba meningkat signifikan.
+- BBCA | POSITIVE: BBCA tetap stabil dengan kualitas aset yang baik dan optimisme pemulihan ekonomi.
+- ANTM | POSITIVE: Harga komoditas volatil, tetapi permintaan ekspor masih tumbuh.

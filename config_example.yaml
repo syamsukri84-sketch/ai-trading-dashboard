@@ -1,0 +1,564 @@
+# config.yaml
+# Trading Decision-Support Application Configuration
+
+# ==================== APPLICATION ====================
+app:
+  name: "Trading Decision-Support System"
+  version: "1.0.0"
+  environment: "development"  # development, staging, production
+  debug: true
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+
+# ==================== DATA CONFIGURATION ====================
+data:
+  # LQ45 Stocks
+  symbols:
+    - BBCA    # Bank Central Asia
+    - BBRI    # Bank Rakyat Indonesia
+    - BMRI    # Bank Mandiri
+    - BKSL    # Bumi Serpong Damai
+    - TLKM    # Telekomunikasi Indonesia
+    - JPFA    # Japfa Comfeed Indonesia
+    - ITMG    # Indo Tambangraya Megah
+    - MYOR    # Mayora Indah
+    - PGAS    # Perusahaan Gas Negara
+    - INTP    # Semen Indonesia
+    - ASII    # Astra International
+    - UNVR    # Unilever Indonesia
+    - INCO    # Vale Indonesia
+    - GGRM    # Gudang Garam
+    - HMSP    # HM Sampoerna
+    - SMGR    # Semen Gresik
+    - ANTM    # Antam
+    - ADHI    # Adhi Karya
+    - WIKA    # Wijaya Karya
+    - PTPP    # PP (Persero)
+    - WSKT    # Waskita Karya
+    - DOID    # Doosan Infracore Indonesia
+    - PGAS    # Perusahaan Gas Negara
+    - BRPT    # Barito Pacific
+    - TCID    # Telekomunikasi Indonesia
+    - JSMR    # Jasa Marga
+    - MIKA    # Mika Indonesia
+    - MDKA    # Medikindo Asri
+    - TBIG    # TB Fruit Indonesia
+    - PROL    # Provident Indonesia
+    - SCMA    # Surya Citra Media
+    - PTKH    # Petrotek Hibualamo
+    - RRTX    # Retendo Tekelok
+    - SMDM    # Semarang Dinamika
+    - SGII    # Sari Gedung Indonesia
+    - SMAN    # Sarana Sumbu Minyak
+    - SOTP    # Soto Pedas Indonesia
+    - SUGI    # Sugisari Indonesia
+    - TFAS    # TF Astra Indonesia
+    - TKGA    # Toko Kalimantan Grosir
+    - TRAM    # Transindo Moda Indonesia
+  
+  historical_years: 3              # 3 years lookback
+  timeframe: "1h"                 # 1-hour bars
+  data_source: "yfinance"         # Data provider
+  
+  # Data validation rules
+  validation:
+    min_rows: 756                 # Minimum 3 years trading days
+    check_nan: true
+    check_positive_ohlcv: true
+    check_monotonic_time: true
+    outlier_detection: "iqr"      # iqr or zscore
+
+# ==================== TRAINING CONFIGURATION ====================
+training:
+  retrain_frequency: "daily"      # daily, weekly, monthly
+  retrain_time: "16:30"           # After market close (WIB)
+  train_window_days: 756          # 3 years
+  validation_window_days: 252     # 1 year for walk-forward
+  
+  # Data splitting for backtesting
+  backtest:
+    train_period_days: 504        # 2 years
+    test_period_days: 63          # 3 months
+    step_days: 1                  # Daily rolling window
+
+# ==================== ISOLATION FOREST MODEL ====================
+model:
+  isolation_forest:
+    enabled: true
+    n_estimators: 500             # Number of trees
+    max_samples: "auto"           # auto = 256
+    contamination: 0.05           # 5% expected anomalies
+    max_features: 1.0             # Use all features
+    bootstrap: false              # Subsampling without replacement
+    n_jobs: -1                    # Use all CPU cores
+    random_state: 42              # For reproducibility
+    verbose: 1
+    
+    # Saving/loading
+    save_format: "joblib"         # joblib or pickle
+    save_path: "data/models/isolation_forest_model.pkl"
+
+  # COPOD Model (only for VOLATILE regime)
+  copod:
+    enabled: true
+    contamination: 0.05
+    save_path: "data/models/copod_model.pkl"
+    
+    # Only train/use in VOLATILE regime
+    volatile_regime_only: true
+
+  # Robust Mahalanobis (optional, for CRASH regime)
+  mahalanobis:
+    enabled: false
+    robust: true                  # Use robust covariance
+    threshold_zscore: 3.0
+
+# ==================== CONFORMAL PREDICTION ====================
+conformal_prediction:
+  enabled: true
+  
+  # Calibration settings
+  alpha: 0.05                     # Significance level (5%)
+  target_fpr: 0.08                # Target false positive rate
+  
+  # Recalibration
+  recalibrate_frequency: "weekly"
+  calibration_data_days: 252      # Use last 1 year for calibration
+  
+  # Saving thresholds
+  save_path: "data/training_metadata/conformal_thresholds.json"
+  
+  # Outputs
+  output_pvalue: true
+  output_confidence_interval: true
+  output_signal_strength: true
+
+# ==================== MARKET REGIME CLASSIFIER ====================
+regime_classifier:
+  enabled: true
+  
+  # Classification thresholds
+  thresholds:
+    # CALM regime
+    vix_threshold_calm: 15        # Max VIX for CALM
+    adx_threshold_calm: 25        # Min ADX for CALM
+    correlation_shift_calm: 0.05  # Max correlation shift for CALM
+    
+    # CRASH regime
+    vix_threshold_crash: 25       # Min VIX for CRASH
+    correlation_shift_crash: 0.10 # Min correlation shift for CRASH
+  
+  # Features calculation window
+  volatility_window: 20           # Days for volatility
+  correlation_window: 60          # Days for correlation
+  trend_window: 14                # Days for ADX
+  
+  # Model training
+  retrain_frequency: "weekly"
+  save_path: "data/models/regime_classifier_model.pkl"
+  
+  # Regime-specific model selection
+  model_selection:
+    CALM:      "isolation_forest_only"
+    VOLATILE:  "isolation_forest_soft_ensemble"
+    CRASH:     "robust_mahalanobis"
+
+# ==================== SOFT ENSEMBLE (VOLATILE ONLY) ====================
+soft_ensemble:
+  enabled: true
+  
+  # Only apply when regime == VOLATILE
+  volatile_regime_only: true
+  
+  # Weights
+  weights:
+    isolation_forest: 0.75
+    copod: 0.25
+  
+  # Must still pass conformal prediction threshold
+  apply_conformal_after: true
+
+# ==================== FEATURE ENGINEERING ====================
+features:
+  # Features to calculate
+  categories:
+    momentum:
+      enabled: true
+      indicators:
+        - rsi_14
+        - rsi_divergence
+        - macd
+        - macd_signal
+        - macd_divergence
+        - stoch_k
+        - stoch_d
+        - price_vs_ema_distance
+    
+    volatility:
+      enabled: true
+      indicators:
+        - atr_14
+        - atr_ratio
+        - bollinger_width
+        - bollinger_squeeze_indicator
+        - historical_vol_20
+        - vol_ratio
+    
+    volume:
+      enabled: true
+      indicators:
+        - volume_ratio
+        - obv
+        - obv_divergence
+        - cmf
+        - ad_line
+        - accumulation_indicator
+    
+    correlation:
+      enabled: true
+      indicators:
+        - correlation_idx_60d
+        - beta_60d
+    
+    price_action:
+      enabled: true
+      indicators:
+        - gap_open
+        - true_range
+        - adr
+        - range_to_adr_ratio
+  
+  # Feature selection
+  min_lookback_rows: 60           # Minimum data before features valid
+  
+  # Quality checks
+  correlation_threshold: 0.7      # Remove correlated features
+  variance_threshold: 1e-6        # Remove constant features
+  nan_threshold: 0.1              # Max 10% NaN allowed
+
+# ==================== TRADING SIGNAL GENERATION ====================
+trading:
+  # Signal thresholds (regime-adjusted)
+  anomaly_thresholds:
+    CALM:      70                 # More conservative in trending market
+    VOLATILE:  65                 # Slightly more aggressive
+    CRASH:     60                 # Need lower threshold in crash
+  
+  # Confidence filters
+  p_value_threshold: 0.05         # p_value < 0.05 to generate signal
+  min_confidence_level: 0.90      # Minimum confidence for trade
+  
+  # Position sizing
+  position_size_percent: 2.0      # 2% risk per trade
+  kelly_fraction: 0.25            # Use 1/4 Kelly Criterion
+  
+  # Risk management
+  stop_loss_atr_multiple: 2.0     # SL = entry ± 2*ATR
+  take_profit_atr_multiples:
+    - 2.0                         # First TP at 2*ATR (50% position)
+    - 3.5                         # Second TP at 3.5*ATR (30% position)
+    - 5.0                         # Third TP at 5*ATR (20% position)
+  
+  # Filtering
+  momentum_filters:
+    rsi_overbought: 70            # Short if RSI > this
+    rsi_oversold: 30              # Long if RSI < this
+  
+  # Trade execution
+  slippage_percent: 0.01          # 0.01% slippage assumption
+  commission_percent: 0.0008      # 0.008% per side (0.016% round trip)
+
+# ==================== BACKTESTING ====================
+backtesting:
+  # Strategy parameters
+  initial_capital: 10000000       # 10M IDR initial capital
+  
+  # Execution
+  execution_type: "market"        # market or limit
+  max_trades_per_day: 3           # Limit daily trades
+  
+  # Validation
+  walk_forward:
+    enabled: true
+    train_period: 504
+    test_period: 63
+    step: 1
+  
+  # Output
+  save_results: true
+  save_path: "data/backtest_results/"
+  plot_charts: true
+
+# ==================== API CONFIGURATION ====================
+api:
+  # Server
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+  
+  # Performance
+  debug: false
+  reload: true  # Auto-reload on code change (dev only)
+  
+  # Timeouts
+  request_timeout: 30             # seconds
+  inference_timeout: 5            # seconds
+  
+  # CORS
+  cors:
+    enabled: true
+    allowed_origins:
+      - "http://localhost:3000"
+      - "http://localhost:8501"   # Streamlit
+      - "http://127.0.0.1:8501"
+    allow_credentials: true
+    allow_methods: ["*"]
+    allow_headers: ["*"]
+  
+  # WebSocket
+  websocket:
+    enabled: true
+    heartbeat_interval: 60        # seconds
+    max_connections_per_ticker: 10
+
+# ==================== DATABASE ====================
+database:
+  type: "sqlite"                  # sqlite or postgresql
+  
+  # SQLite configuration
+  sqlite:
+    path: "data/trading.db"
+    journal_mode: "WAL"           # Write-Ahead Logging for concurrency
+    timeout: 30                   # Connection timeout (seconds)
+  
+  # PostgreSQL configuration (if type: postgresql)
+  postgresql:
+    host: "localhost"
+    port: 5432
+    user: "trading_user"
+    password: "${DB_PASSWORD}"    # Use environment variable
+    database: "trading_db"
+    pool_size: 10
+    max_overflow: 20
+  
+  # Data retention
+  retention_days: 90              # Keep last 90 days of data
+  cleanup_frequency: "daily"
+
+# ==================== REDIS CACHE ====================
+redis:
+  enabled: true
+  host: "localhost"
+  port: 6379
+  db: 0
+  password: null                  # Set if Redis password enabled
+  
+  # TTLs (time to live)
+  ttl:
+    anomaly_scores: 3600          # 1 hour
+    market_overview: 300          # 5 minutes
+    trade_setups: 600             # 10 minutes
+    regime_classification: 86400   # 1 day
+  
+  # Prefix for keys
+  key_prefix: "trading:"
+
+# ==================== MONITORING & LOGGING ====================
+monitoring:
+  # Model monitoring
+  model_performance_tracking: true
+  data_drift_detection: true
+  concept_drift_detection: true
+  alert_on_performance_drop: true
+  performance_drop_threshold: 0.20  # 20% drop triggers alert
+  
+  # Logging
+  log_level: "INFO"
+  log_file: "logs/trading_system.log"
+  log_rotation: "daily"           # daily, weekly, monthly
+  log_retention_days: 30
+  
+  # Metrics tracking
+  track_inference_latency: true
+  track_data_quality: true
+  track_signal_quality: true
+  
+  # Alerting
+  slack_notifications: false
+  slack_webhook: "${SLACK_WEBHOOK_URL}"
+  email_alerts: false
+  email_recipient: "admin@example.com"
+
+# ==================== STREAMLIT DASHBOARD ====================
+streamlit:
+  enabled: true
+  
+  # Appearance
+  theme: "light"  # light or dark
+  page_title: "Trading Decision Support"
+  page_icon: "📈"
+  
+  # Performance
+  logger_level: "info"
+  
+  # Caching
+  cache_expiration_hours: 1
+  
+  # Pages configuration
+  pages:
+    market_overview:
+      enabled: true
+      refresh_interval: 60        # seconds
+    
+    signal_scanner:
+      enabled: true
+      refresh_interval: 300       # seconds (5 minutes)
+    
+    backtest_studio:
+      enabled: true
+      refresh_interval: null      # Manual refresh
+    
+    portfolio_manager:
+      enabled: true
+      refresh_interval: 300       # seconds
+
+# ==================== DOCKER DEPLOYMENT ====================
+docker:
+  enabled: false
+  
+  # Image configuration
+  base_image: "python:3.11-slim"
+  image_name: "trading-decision-support"
+  image_tag: "latest"
+  
+  # Container
+  container_name: "trading-app"
+  restart_policy: "unless-stopped"
+  
+  # Resource limits
+  memory_limit: "4g"
+  cpus_limit: "2.0"
+
+# ==================== DEVELOPMENT ====================
+development:
+  debug_mode: true
+  verbose_logging: true
+  
+  # Testing
+  run_tests_on_startup: false
+  test_data_path: "data/test/"
+  
+  # Profiling
+  enable_profiling: false
+  profile_output_path: "logs/profile/"
+  
+  # Hot reloading
+  auto_reload_models: true
+  auto_reload_features: true
+
+---
+
+# feature_config.yaml
+# Technical Indicators Configuration
+
+indicators:
+  
+  # ==================== MOMENTUM ====================
+  rsi:
+    period: 14
+    min_data_points: 15
+    description: "Relative Strength Index"
+    interpretation: ">70 overbought, <30 oversold"
+  
+  macd:
+    fast_period: 12
+    slow_period: 26
+    signal_period: 9
+    min_data_points: 27
+    description: "Moving Average Convergence Divergence"
+  
+  stochastic:
+    k_period: 14
+    d_period: 3
+    min_data_points: 15
+    description: "Stochastic Oscillator"
+  
+  # ==================== VOLATILITY ====================
+  atr:
+    period: 14
+    min_data_points: 15
+    description: "Average True Range"
+  
+  bollinger_bands:
+    period: 20
+    std_dev: 2
+    min_data_points: 21
+    description: "Bollinger Bands"
+  
+  # ==================== VOLUME ====================
+  obv:
+    min_data_points: 2
+    description: "On-Balance Volume"
+  
+  cmf:
+    period: 20
+    min_data_points: 21
+    description: "Chaikin Money Flow"
+  
+  # ==================== TREND ====================
+  adx:
+    period: 14
+    min_data_points: 15
+    description: "Average Directional Index"
+
+---
+
+# model_config.yaml
+# Model Hyperparameters and Training Configuration
+
+models:
+  
+  isolation_forest:
+    # Hyperparameters
+    n_estimators: 500
+    max_samples: "auto"
+    contamination: 0.05
+    
+    # Training
+    cv_folds: 5
+    test_size: 0.2
+    random_state: 42
+    
+    # Performance targets
+    target_metrics:
+      sharpe_ratio_min: 1.2
+      win_rate_min: 0.54
+      max_drawdown_max: -0.15
+  
+  conformal_prediction:
+    alpha: 0.05
+    target_fpr: 0.08
+    
+    calibration_method: "quantile"
+    confidence_levels:
+      HIGH: 0.95
+      MODERATE: 0.80
+      LOW: 0.60
+  
+  regime_classifier:
+    # Features
+    vix_proxy_window: 20
+    adx_window: 14
+    correlation_window: 60
+    
+    # Classification
+    calm_probability_min: 0.70
+    crash_probability_min: 0.70
+    
+    # Transitions
+    allow_same_day_transition: false
+    required_confirmation_bars: 1
+  
+  copod:
+    contamination: 0.05
+    detector_type: "default"
+

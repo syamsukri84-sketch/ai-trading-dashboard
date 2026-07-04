@@ -1,0 +1,1090 @@
+{
+  "updated": [],
+  "skipped": [
+    {
+      "ticker": "AADI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "AALI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ABMM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ACES",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ADES",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ADHI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ADMR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ADRO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "AGRO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "AISA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "AKRA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ALDO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ALII",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "AMAG",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "AMAR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "AMMN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "AMRT",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ANTM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "APLN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ARNA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ARTO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ASGR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ASII",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ASRI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ASSA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "AUTO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "AVIA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BACA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BALI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BAYU",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BBCA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BBHI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BBMD",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BBNI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BBRI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BBTN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BBYB",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BCAP",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BDKR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BDMN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BEST",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BFIN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BGTG",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BINA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BIRD",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BISI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BJBR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BJTM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BKSL",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BLOG",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BMHS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BMRI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BMTR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BNGA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BNII",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BNLI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BOLA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BREN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BRIS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BRMS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BRPT",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BSDE",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BSIM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BSSR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BTPN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BTPS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BUDI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BUMI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BVIC",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BWPT",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "BYAN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "CARS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "CASS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "CBDK",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "CBUT",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "CFIN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "CITA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "CLEO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "CMNP",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "CMRY",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "CPIN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "CTRA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "CUAN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "DAAZ",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "DEWA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "DGWG",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "DILD",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "DKFT",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "DLTA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "DMAS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "DMND",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "DNET",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "DRMA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "DSNG",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "DSSA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ELPI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ELSA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "EMTK",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ENRG",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "EPMT",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ERAA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ERAL",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ESSA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "EXCL",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "FILM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "FISH",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "GEMS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "GGRM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "GJTL",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "GLVA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "GOLF",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "GOOD",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "GOTO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "GZCO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "HATM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "HEAL",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "HERO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "HEXA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "HMSP",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "HRTA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "HRUM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ICBP",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "IMAS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "IMPC",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "INCO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "INDF",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "INDY",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "INKP",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "INPC",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "INTP",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "IPCC",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "IPCM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ISAT",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ISSP",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ITMG",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "JARR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "JIHD",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "JKON",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "JPFA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "JRPT",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "JSMR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "JSPT",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "JTPE",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "KBLI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "KEEN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "KEJU",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "KIJA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "KKGI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "KLBF",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "KOTA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "KPIG",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "LPCK",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "LPKR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "LPPF",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "LSIP",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "LTLS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MAHA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MAIN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MAPA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MAPI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MARK",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MASB",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MAYA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MBMA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MBSS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MCOL",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MCOR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MDIY",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MDKA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MDLA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MEDC",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MEGA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MERK",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MIDI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MIKA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MKTR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MLBI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MLPL",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MNCN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MORA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MPMX",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MSIN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MSTI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MTDL",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MTEL",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MTLA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MTMH",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "MYOR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "NISP",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "NOBU",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "OMED",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PALM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PANI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PANS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PBID",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PGAS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PGEO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PNBN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PNGO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PNIN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PNLF",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PORT",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "POWR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PRAY",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PRDA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PSGO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PSSI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PTBA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PTPP",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PTRO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "PWON",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "RAAM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "RAJA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "RALS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "RMKE",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SAME",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SAMF",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SCMA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SGER",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SGRO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SHIP",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SIDO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SILO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SIMP",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SKRN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SMAR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SMBR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SMDR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SMGR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SMIL",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SMRA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SMSM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SPTO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SRTG",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SSIA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SSMS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "STAA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "SUNI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TAPG",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TBIG",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TBLA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TEBE",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TINS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TKIM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TLDN",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TLKM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TMAS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TOBA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TOTL",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TOTO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TOWR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TPIA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TPMA",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TRGU",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TRIM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TSPC",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "TUGU",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "UCID",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "ULTJ",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "UNIC",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "UNTR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "UNVR",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "VICI",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "VICO",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "WIIM",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "WINS",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "WOOD",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "WTON",
+      "reason": "Data sudah paling up-to-date."
+    },
+    {
+      "ticker": "YUPI",
+      "reason": "Data sudah paling up-to-date."
+    }
+  ],
+  "failed": [
+    {
+      "ticker": "BBSI",
+      "reason": "yfinance: tidak ada data; yahooquery: tidak ada data"
+    }
+  ],
+  "total": 270,
+  "started_at": "2026-06-30T20:00:52",
+  "finished_at": "2026-06-30T20:00:59"
+}

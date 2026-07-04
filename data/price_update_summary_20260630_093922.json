@@ -1,0 +1,21 @@
+{
+  "updated": [
+    {
+      "ticker": "BBCA",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 967
+    },
+    {
+      "ticker": "BBRI",
+      "provider": "yfinance",
+      "rows_added": 1,
+      "total_rows": 966
+    }
+  ],
+  "skipped": [],
+  "failed": [],
+  "total": 2,
+  "started_at": "2026-06-30T09:39:20",
+  "finished_at": "2026-06-30T09:39:22"
+}

@@ -1,0 +1,31 @@
+date,ticker,source,text,manual_label
+2026-07-03,IHSG,seed_negative,IHSG melemah karena tekanan suku bunga global dan aksi jual asing meningkat.,negative
+2026-07-03,IHSG,seed_negative,Rupiah tertekan dan pasar saham terkoreksi tajam pada sesi perdagangan hari ini.,negative
+2026-07-03,BBRI,seed_negative,BBRI melemah setelah investor merespons negatif kenaikan risiko kredit bermasalah.,negative
+2026-07-03,BBCA,seed_negative,BBCA terkoreksi akibat tekanan jual asing dan kekhawatiran perlambatan kredit.,negative
+2026-07-03,TLKM,seed_negative,TLKM menghadapi tekanan margin karena kompetisi tarif semakin ketat.,negative
+2026-07-03,ANTM,seed_negative,ANTM turun setelah harga komoditas melemah dan permintaan ekspor melambat.,negative
+2026-07-03,ASII,seed_negative,ASII mencatat penurunan penjualan kendaraan sehingga prospek laba tertekan.,negative
+2026-07-03,UNVR,seed_negative,UNVR melemah karena margin turun dan biaya bahan baku meningkat.,negative
+2026-07-03,MDKA,seed_negative,MDKA terkoreksi setelah harga emas dan tembaga bergerak negatif.,negative
+2026-07-03,GOTO,seed_negative,GOTO kembali melemah karena kekhawatiran rugi bersih dan arus kas negatif.,negative
+2026-07-03,IHSG,seed_negative,Pasar saham dibayangi sentimen negatif dari kenaikan yield obligasi Amerika Serikat.,negative
+2026-07-03,IHSG,seed_negative,Investor mengurangi posisi saham berisiko setelah data ekonomi global mengecewakan.,negative
+2026-07-03,BBNI,seed_negative,BBNI turun karena pasar mencermati potensi kenaikan biaya pencadangan kredit.,negative
+2026-07-03,BMRI,seed_negative,BMRI terkoreksi setelah analis menurunkan proyeksi pertumbuhan laba.,negative
+2026-07-03,ADRO,seed_negative,ADRO melemah karena harga batu bara turun dan permintaan energi melambat.,negative
+2026-07-03,IHSG,seed_neutral,Bursa Efek Indonesia mengumumkan jadwal perdagangan terbaru untuk pekan depan.,neutral
+2026-07-03,BBRI,seed_neutral,BBRI akan menggelar paparan publik tahunan kepada investor.,neutral
+2026-07-03,BBCA,seed_neutral,BBCA menyampaikan jadwal rapat umum pemegang saham tahunan.,neutral
+2026-07-03,TLKM,seed_neutral,TLKM merilis keterbukaan informasi mengenai agenda korporasi rutin.,neutral
+2026-07-03,ANTM,seed_neutral,ANTM menyampaikan laporan operasional bulanan kepada publik.,neutral
+2026-07-03,ASII,seed_neutral,ASII mengumumkan perubahan susunan komite perusahaan.,neutral
+2026-07-03,UNVR,seed_neutral,UNVR menjadwalkan paparan publik untuk menjelaskan kinerja kuartalan.,neutral
+2026-07-03,MDKA,seed_neutral,MDKA menyampaikan informasi administrasi terkait kegiatan eksplorasi.,neutral
+2026-07-03,GOTO,seed_neutral,GOTO mengumumkan jadwal penyampaian laporan keuangan berikutnya.,neutral
+2026-07-03,IHSG,seed_neutral,Indeks saham bergerak terbatas menjelang rilis data ekonomi domestik.,neutral
+2026-07-03,IHSG,seed_neutral,Investor menunggu pengumuman bank sentral sebelum mengambil posisi baru.,neutral
+2026-07-03,BBNI,seed_neutral,BBNI menyampaikan jadwal pembagian dividen kepada pemegang saham.,neutral
+2026-07-03,BMRI,seed_neutral,BMRI menggelar konferensi pers untuk menjelaskan strategi bisnis.,neutral
+2026-07-03,ADRO,seed_neutral,ADRO menyampaikan laporan produksi dan penjualan secara berkala.,neutral
+2026-07-03,INDF,seed_neutral,INDF mengumumkan agenda rapat umum pemegang saham luar biasa.,neutral
