@@ -1,3 +1,7 @@
+> ⚠️ **USANG (per 2026-07-12)** — panduan setup ini dari fase perencanaan awal (Juni 2026),
+> merujuk ke `SYSTEM_PROMPT_TRADING_APP.md` yang arsitekturnya sudah berubah total.
+> **Baca `STATUS_PROYEK_AI_TRADING.md` terlebih dahulu** untuk status & cara kerja terkini.
+
 # 🚀 QUICK START: Menggunakan Prompt + AI Copilot untuk Development
 
 **Tujuan**: Setup development environment + integrate AI Copilot untuk implement sesuai spec

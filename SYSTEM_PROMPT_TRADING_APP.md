@@ -1,3 +1,9 @@
+> ⚠️ **USANG (per 2026-07-12)** — dokumen ini spek fase perencanaan awal (Juni 2026) dan
+> TIDAK MENCERMINKAN arsitektur nyata sekarang (FastAPI+SQLite+IsolationForest yang
+> digambarkan di sini sudah jadi jalur eksperimental terpisah, bukan inti sistem lagi).
+> **Baca `STATUS_PROYEK_AI_TRADING.md` terlebih dahulu** untuk arsitektur & status terkini.
+> File ini disimpan hanya untuk konteks sejarah.
+
 # SYSTEM PROMPT: Trading Decision-Support Application
 ## Context untuk AI Coding Assistant (Copilot, Claude, Codeium)
 
