@@ -1,0 +1,55 @@
+{
+  "workflow": "GLOBAL_DAILY_AFTER_MARKET",
+  "started_at": "2026-07-15 06:11:33",
+  "finished_at": "2026-07-15 06:30:33",
+  "ticker_count": 270,
+  "steps": [
+    {
+      "step": "build_local_sentiment_dataset",
+      "status": "DONE",
+      "output": "D:\\PROYEK_PYTHON\\08_AI TRADING\\data\\sentiment\\processed\\financial_news_clean.csv",
+      "rows": 216,
+      "label_counts": {
+        "positive": 110,
+        "neutral": 88,
+        "negative": 18
+      }
+    },
+    {
+      "step": "update_data",
+      "status": "DONE",
+      "total": 270,
+      "updated": 270,
+      "skipped": 0,
+      "failed": 0,
+      "latest_dates": {
+        "2026-07-14": 270
+      },
+      "failed_examples": []
+    },
+    {
+      "step": "evaluate_pending_predictions",
+      "status": "DONE",
+      "accuracy_rows_before": 25029,
+      "accuracy_rows_after": 25567,
+      "new_evaluations": 538,
+      "pending_before": 4853,
+      "pending_after": 4315
+    },
+    {
+      "step": "predict_global_model",
+      "status": "DONE",
+      "predicted": 269,
+      "skipped": 0,
+      "failed": 1,
+      "failed_examples": [
+        {
+          "ticker": "BLOG",
+          "reason": "Data lokal kosong/tidak tersedia."
+        }
+      ],
+      "skipped_examples": []
+    }
+  ],
+  "status": "OK"
+}

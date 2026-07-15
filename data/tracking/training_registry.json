@@ -639,30 +639,58 @@
       "analyzed_count": 11,
       "skipped_count": 0,
       "failed_count": 1
+    },
+    {
+      "training_run_id": "20260713_050703",
+      "trained_at": "2026-07-13 05:07:03",
+      "training_month": "2026-07",
+      "run_type": "FINAL",
+      "trigger": "BATCH_ANALYSIS",
+      "tickers": [
+        "BBCA"
+      ],
+      "analyzed_count": 1,
+      "skipped_count": 0,
+      "failed_count": 0
+    },
+    {
+      "training_run_id": "20260713_050809",
+      "trained_at": "2026-07-13 05:08:09",
+      "training_month": "2026-07",
+      "run_type": "FINAL",
+      "trigger": "BATCH_ANALYSIS",
+      "tickers": [
+        "BBCA"
+      ],
+      "analyzed_count": 1,
+      "skipped_count": 0,
+      "failed_count": 0
+    },
+    {
+      "training_run_id": "20260713_050846",
+      "trained_at": "2026-07-13 05:08:46",
+      "training_month": "2026-07",
+      "run_type": "FINAL",
+      "trigger": "BATCH_ANALYSIS",
+      "tickers": [
+        "BBCA"
+      ],
+      "analyzed_count": 1,
+      "skipped_count": 0,
+      "failed_count": 0
     }
   ],
   "last_run": {
-    "training_run_id": "20260630_193431",
-    "trained_at": "2026-06-30 19:34:31",
-    "training_month": "2026-06",
+    "training_run_id": "20260713_050846",
+    "trained_at": "2026-07-13 05:08:46",
+    "training_month": "2026-07",
     "run_type": "FINAL",
     "trigger": "BATCH_ANALYSIS",
     "tickers": [
-      "AKRA",
-      "ARNA",
-      "AVIA",
-      "BEST",
-      "BLOG",
-      "FILM",
-      "MDIY",
-      "MTDL",
-      "SMGR",
-      "TLKM",
-      "WOOD",
-      "YUPI"
+      "BBCA"
     ],
-    "analyzed_count": 11,
+    "analyzed_count": 1,
     "skipped_count": 0,
-    "failed_count": 1
+    "failed_count": 0
   }
 }
