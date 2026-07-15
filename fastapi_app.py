@@ -1,3 +1,10 @@
+# PERINGATAN: API ini adalah jalur sinyal EKSPERIMENTAL yang terpisah dari
+# dashboard Streamlit (streamlit_app.py) yang sebenarnya dipakai untuk keputusan
+# trading. Pipeline di routes.py (isolation forest + conformal predictor +
+# regime classifier) belum pernah divalidasi walk-forward vs baseline naif --
+# TIDAK sama seperti DirectionClassifier/trust-audit di jalur produksi. Jangan
+# perlakukan "confidence"/"p_value" dari API ini sebagai sinyal yang sudah
+# terbukti punya edge. streamlit_app.py TIDAK memanggil API ini sama sekali.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse

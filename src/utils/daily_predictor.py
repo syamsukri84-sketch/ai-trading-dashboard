@@ -43,8 +43,6 @@ def run_daily_prediction_from_saved_models(
             if df is None or df.empty:
                 raise ValueError("Data harga lokal tidak dapat dimuat.")
             idx_df = loader.load_data("^JKSE")
-            if idx_df is None:
-                idx_df = df
             features_df = engineer.generate_features(df, idx_df=idx_df)
             if features_df.empty:
                 raise ValueError("Fitur teknikal tidak dapat dibuat.")

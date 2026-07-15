@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.data_pipeline.auto_updater import get_local_data_status, run_auto_updater
 from src.models.global_models import predict_with_global_models
 from src.nlp.sentiment_analyzer import build_local_sentiment_dataset, get_local_sentiment_dataset_path
+from src.trading.market_regime import compute_market_breadth, log_regime_snapshot
 from src.utils.accuracy_tracker import ACCURACY_FILE, PREDICTIONS_FILE, evaluate_pending_predictions
 from src.utils.model_store import list_ticker_models
 
@@ -135,37 +136,69 @@ def main() -> int:
 
     if not args.skip_update:
         print("\n[2/4] Update data harga...")
-        update_summary = run_auto_updater(
-            config_path=args.config,
-            data_dir=args.data_dir,
-            tickers=tickers,
-            sleep_seconds=float(args.sleep),
-        )
-        status_df = get_local_data_status(tickers, data_dir=args.data_dir)
-        latest_dates = {}
-        if status_df is not None and not status_df.empty:
-            latest_dates = status_df["last_date"].value_counts(dropna=False).head(10).to_dict()
-        step = {
-            "step": "update_data",
-            "status": "DONE",
-            "total": update_summary.get("total", len(tickers)),
-            "updated": len(update_summary.get("updated", [])),
-            "skipped": len(update_summary.get("skipped", [])),
-            "failed": len(update_summary.get("failed", [])),
-            "latest_dates": {str(k): int(v) for k, v in latest_dates.items()},
-            "failed_examples": update_summary.get("failed", [])[:20],
-        }
-        summary["steps"].append(step)
-        print(f"Updated: {step['updated']} | Skipped: {step['skipped']} | Failed: {step['failed']}")
-        if latest_dates:
-            print("Tanggal data terakhir:")
-            for date_value, count in latest_dates.items():
-                print(f"- {date_value}: {count}")
-        if step["failed"] and args.strict_update:
+        try:
+            update_summary = run_auto_updater(
+                config_path=args.config,
+                data_dir=args.data_dir,
+                tickers=tickers,
+                sleep_seconds=float(args.sleep),
+            )
+            # Perbarui juga data indeks IHSG (^JKSE) -- TERPISAH dari daftar
+            # `tickers` saham (sengaja tidak digabung supaya index ini tidak ikut
+            # masuk ke loop prediksi/training saham di bawah). Fitur korelasi/beta
+            # -terhadap-pasar di seluruh sistem bergantung pada data ini; sebelum
+            # perbaikan bug simbol Yahoo Finance, file ini tidak pernah berhasil
+            # terisi sama sekali (selalu fallback ke nilai netral).
+            try:
+                run_auto_updater(data_dir=args.data_dir, tickers=["^JKSE"], sleep_seconds=0.0)
+            except Exception as exc:
+                print(f"Peringatan: gagal memperbarui data indeks ^JKSE: {exc}")
+            status_df = get_local_data_status(tickers, data_dir=args.data_dir)
+            latest_dates = {}
+            if status_df is not None and not status_df.empty:
+                latest_dates = status_df["last_date"].value_counts(dropna=False).head(10).to_dict()
+            step = {
+                "step": "update_data",
+                "status": "DONE",
+                "total": update_summary.get("total", len(tickers)),
+                "updated": len(update_summary.get("updated", [])),
+                "skipped": len(update_summary.get("skipped", [])),
+                "failed": len(update_summary.get("failed", [])),
+                "latest_dates": {str(k): int(v) for k, v in latest_dates.items()},
+                "failed_examples": update_summary.get("failed", [])[:20],
+            }
+            summary["steps"].append(step)
+            print(f"Updated: {step['updated']} | Skipped: {step['skipped']} | Failed: {step['failed']}")
+            if latest_dates:
+                print("Tanggal data terakhir:")
+                for date_value, count in latest_dates.items():
+                    print(f"- {date_value}: {count}")
+            if step["failed"] and args.strict_update:
+                summary["status"] = "FAILED"
+                summary["finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                output_path = write_summary(summary, args.summary_dir)
+                print(f"\nWorkflow berhenti karena update gagal. Ringkasan: {output_path}")
+                return 1
+
+            # Catat regime pasar hari ini (breadth naik/turun) ke riwayat --
+            # dijalankan di sini (bukan hanya saat dashboard dibuka) supaya
+            # otomatisasi terjadwal (Task Scheduler) tetap membangun riwayat
+            # regime harian walau dashboard tidak pernah dibuka. Lihat
+            # ROADMAP_COGNITIVE_DASHBOARD.md Bagian B3.
+            market_breadth = compute_market_breadth(tickers, raw_dir=args.data_dir)
+            log_regime_snapshot(market_breadth)
+            print(f"Regime pasar hari ini: {market_breadth['market_regime']} (breadth naik {market_breadth['breadth_up_pct']:.1f}%)")
+        except Exception as exc:
             summary["status"] = "FAILED"
+            summary["steps"].append({
+                "step": "update_data",
+                "status": "FAILED",
+                "reason": str(exc),
+            })
             summary["finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             output_path = write_summary(summary, args.summary_dir)
-            print(f"\nWorkflow berhenti karena update gagal. Ringkasan: {output_path}")
+            print(f"\nUpdate data harga gagal tak terduga: {exc}")
+            print(f"Ringkasan: {output_path}")
             return 1
     else:
         summary["steps"].append({"step": "update_data", "status": "SKIPPED"})
@@ -173,69 +206,95 @@ def main() -> int:
 
     if not args.skip_evaluation:
         print("\n[3/4] Evaluasi prediksi pending...")
-        accuracy_before = count_rows(ACCURACY_FILE)
-        pending_before = count_pending_predictions()
-        evaluate_pending_predictions()
-        accuracy_after = count_rows(ACCURACY_FILE)
-        pending_after = count_pending_predictions()
-        evaluated_delta = max(accuracy_after - accuracy_before, 0)
-        summary["steps"].append({
-            "step": "evaluate_pending_predictions",
-            "status": "DONE",
-            "accuracy_rows_before": accuracy_before,
-            "accuracy_rows_after": accuracy_after,
-            "new_evaluations": evaluated_delta,
-            "pending_before": pending_before,
-            "pending_after": pending_after,
-        })
-        print(f"Evaluasi baru: {evaluated_delta} | Pending tersisa: {pending_after}")
+        try:
+            accuracy_before = count_rows(ACCURACY_FILE)
+            pending_before = count_pending_predictions()
+            evaluate_pending_predictions()
+            accuracy_after = count_rows(ACCURACY_FILE)
+            pending_after = count_pending_predictions()
+            evaluated_delta = max(accuracy_after - accuracy_before, 0)
+            summary["steps"].append({
+                "step": "evaluate_pending_predictions",
+                "status": "DONE",
+                "accuracy_rows_before": accuracy_before,
+                "accuracy_rows_after": accuracy_after,
+                "new_evaluations": evaluated_delta,
+                "pending_before": pending_before,
+                "pending_after": pending_after,
+            })
+            print(f"Evaluasi baru: {evaluated_delta} | Pending tersisa: {pending_after}")
+        except Exception as exc:
+            summary["status"] = "FAILED"
+            summary["steps"].append({
+                "step": "evaluate_pending_predictions",
+                "status": "FAILED",
+                "reason": str(exc),
+            })
+            summary["finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            output_path = write_summary(summary, args.summary_dir)
+            print(f"\nEvaluasi prediksi pending gagal: {exc}")
+            print(f"Ringkasan: {output_path}")
+            return 1
     else:
         summary["steps"].append({"step": "evaluate_pending_predictions", "status": "SKIPPED"})
         print("\n[3/4] Evaluasi prediksi pending dilewati.")
 
     if not args.skip_prediction:
         print("\n[4/4] Prediksi Global Model...")
-        global_records = list_ticker_models("GLOBAL")
-        if not global_records:
+        try:
+            global_records = list_ticker_models("GLOBAL")
+            if not global_records:
+                summary["status"] = "FAILED"
+                summary["steps"].append({
+                    "step": "predict_global_model",
+                    "status": "FAILED",
+                    "reason": "Global Model belum tersedia.",
+                })
+                summary["finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                output_path = write_summary(summary, args.summary_dir)
+                print("Global Model belum tersedia. Jalankan training global terlebih dahulu.")
+                print(f"Ringkasan: {output_path}")
+                return 1
+
+            def progress(event):
+                ticker = event.get("ticker") or "-"
+                completed = int(event.get("completed") or 0)
+                total = int(event.get("total") or len(tickers))
+                if total and (completed == 0 or completed == total or completed % 25 == 0):
+                    print(f"[{completed}/{total}] {ticker}")
+
+            prediction_summary = predict_with_global_models(
+                tickers=tickers,
+                duplicate_policy="skip",
+                prediction_run_type="FINAL",
+                progress_callback=progress,
+            )
+            summary["steps"].append({
+                "step": "predict_global_model",
+                "status": "DONE",
+                "predicted": len(prediction_summary.get("predicted", [])),
+                "skipped": len(prediction_summary.get("skipped", [])),
+                "failed": len(prediction_summary.get("failed", [])),
+                "failed_examples": prediction_summary.get("failed", [])[:20],
+                "skipped_examples": prediction_summary.get("skipped", [])[:20],
+            })
+            print(
+                f"Predicted: {len(prediction_summary.get('predicted', []))} | "
+                f"Skipped: {len(prediction_summary.get('skipped', []))} | "
+                f"Failed: {len(prediction_summary.get('failed', []))}"
+            )
+        except Exception as exc:
             summary["status"] = "FAILED"
             summary["steps"].append({
                 "step": "predict_global_model",
                 "status": "FAILED",
-                "reason": "Global Model belum tersedia.",
+                "reason": str(exc),
             })
             summary["finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             output_path = write_summary(summary, args.summary_dir)
-            print("Global Model belum tersedia. Jalankan training global terlebih dahulu.")
+            print(f"\nPrediksi Global Model gagal: {exc}")
             print(f"Ringkasan: {output_path}")
             return 1
-
-        def progress(event):
-            ticker = event.get("ticker") or "-"
-            completed = int(event.get("completed") or 0)
-            total = int(event.get("total") or len(tickers))
-            if total and (completed == 0 or completed == total or completed % 25 == 0):
-                print(f"[{completed}/{total}] {ticker}")
-
-        prediction_summary = predict_with_global_models(
-            tickers=tickers,
-            duplicate_policy="skip",
-            prediction_run_type="FINAL",
-            progress_callback=progress,
-        )
-        summary["steps"].append({
-            "step": "predict_global_model",
-            "status": "DONE",
-            "predicted": len(prediction_summary.get("predicted", [])),
-            "skipped": len(prediction_summary.get("skipped", [])),
-            "failed": len(prediction_summary.get("failed", [])),
-            "failed_examples": prediction_summary.get("failed", [])[:20],
-            "skipped_examples": prediction_summary.get("skipped", [])[:20],
-        })
-        print(
-            f"Predicted: {len(prediction_summary.get('predicted', []))} | "
-            f"Skipped: {len(prediction_summary.get('skipped', []))} | "
-            f"Failed: {len(prediction_summary.get('failed', []))}"
-        )
     else:
         summary["steps"].append({"step": "predict_global_model", "status": "SKIPPED"})
         print("\n[4/4] Prediksi Global Model dilewati.")

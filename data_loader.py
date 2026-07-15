@@ -80,7 +80,7 @@ class DataLoader:
             # Intip dulu baris pertama untuk melihat format kolomnya
             temp_df = pd.read_csv(file_path, nrows=0)
 
-            if 'Tanggal' in temp_df.columns and ('Terakhir' in temp_df.columns or 'Terakhir' in temp_df.columns):
+            if 'Tanggal' in temp_df.columns and 'Terakhir' in temp_df.columns:
                 df = pd.read_csv(file_path, dtype=str)
                 df = self._parse_investing_csv(df)
             else:

@@ -8,6 +8,8 @@ from datetime import datetime
 import pandas as pd
 from pandas.errors import EmptyDataError
 
+from src.utils.atomic_io import atomic_write_csv
+
 
 REQUIRED_PREDICTION_COLUMNS = [
     "timestamp_prediction",
@@ -138,5 +140,5 @@ def clean_prediction_csv(path: str, backup_dir: str | None = None) -> tuple[str,
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_path = os.path.join(backup_dir, f"predictions_log_backup_{timestamp}.csv")
     shutil.copy2(path, backup_path)
-    clean_df.to_csv(path, index=False)
+    atomic_write_csv(clean_df, path, index=False)
     return backup_path, audit

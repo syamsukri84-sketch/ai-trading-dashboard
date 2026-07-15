@@ -148,19 +148,25 @@ def test_model_trust_audit_statuses(tmp_path):
     pred_path = tmp_path / "predictions_log.csv"
     records = []
     pred_records = []
+    # BBRI: model benar-benar mendiskriminasi arah (7 NAIK, 5 TURUN pada data
+    # aktual) dan selalu benar -- baseline tebak-mayoritas cuma ~58%, jadi ada
+    # edge nyata ~42pp. Ini beda dari skenario "akurasi 100% tapi market
+    # kebetulan naik terus" yang diuji terpisah di bawah.
     for i in range(12):
         target = f"2026-06-{i + 2:02d}"
         predicted = f"2026-06-{i + 1:02d}"
+        actual_up = i < 7
+        direction = "NAIK" if actual_up else "TURUN"
         records.append({
             "evaluation_date": f"{target} 09:00:00",
             "ticker": "BBRI",
             "model_name": "Direction-LightGBM",
             "predicted_date": predicted,
             "target_date_requested": target,
-            "predicted_direction": "NAIK",
+            "predicted_direction": direction,
             "direction_correct": True,
-            "predicted_return_pct": 1.0,
-            "actual_return_pct": 1.2,
+            "predicted_return_pct": 1.0 if actual_up else -1.0,
+            "actual_return_pct": 1.2 if actual_up else -1.2,
             "error_margin_pct": 1.0,
             "prediction_purpose": "NEXT_DAY_DIRECTION",
             "prediction_run_type": "FINAL",
@@ -215,7 +221,62 @@ def test_model_trust_audit_statuses(tmp_path):
     bbri = audit[audit["ticker"] == "BBRI"].iloc[0]
     bmri = audit[audit["ticker"] == "BMRI"].iloc[0]
     assert bbri["status_trust"] == "LAYAK DIPERCAYA"
+    assert bbri["edge_vs_baseline_pct"] > 0
     assert bmri["status_trust"] == "PERLU DATA LAGI"
+
+
+def test_model_trust_audit_flags_illusory_accuracy_without_baseline_edge(tmp_path):
+    """Akurasi mentah 100% tapi TIDAK ada edge (market kebetulan naik terus
+    sepanjang periode evaluasi) harus DITOLAK, bukan LAYAK DIPERCAYA -- ini
+    persis pola bug yang ditemukan & diperbaiki sepanjang sesi optimasi model.
+    """
+    acc_path = tmp_path / "accuracy_log.csv"
+    pred_path = tmp_path / "predictions_log.csv"
+    records = []
+    pred_records = []
+    for i in range(12):
+        target = f"2026-06-{i + 2:02d}"
+        predicted = f"2026-06-{i + 1:02d}"
+        records.append({
+            "evaluation_date": f"{target} 09:00:00",
+            "ticker": "ANEK",
+            "model_name": "Direction-XGBoost",
+            "predicted_date": predicted,
+            "target_date_requested": target,
+            "predicted_direction": "NAIK",
+            "direction_correct": True,
+            "predicted_return_pct": 1.0,
+            "actual_return_pct": 1.2,
+            "error_margin_pct": 1.0,
+            "prediction_purpose": "NEXT_DAY_DIRECTION",
+            "prediction_run_type": "FINAL",
+        })
+        pred_records.append({
+            "ticker": "ANEK",
+            "model_name": "Direction-XGBoost",
+            "current_date": predicted,
+            "target_date": target,
+            "confidence_pct": 88.0,
+            "prediction_purpose": "NEXT_DAY_DIRECTION",
+            "prediction_run_type": "FINAL",
+        })
+
+    pd.DataFrame(records).to_csv(acc_path, index=False)
+    pd.DataFrame(pred_records).to_csv(pred_path, index=False)
+
+    audit = get_model_trust_audit(
+        str(pred_path),
+        str(acc_path),
+        prediction_purpose="NEXT_DAY_DIRECTION",
+        min_evaluations=10,
+        max_abs_calibration_gap_pct=20.0,
+    )
+
+    anek = audit[audit["ticker"] == "ANEK"].iloc[0]
+    assert anek["direction_accuracy_pct"] == 100.0
+    assert anek["edge_vs_baseline_pct"] == 0.0
+    assert anek["status_trust"] == "JANGAN DIIKUTI"
+    assert "edge" in anek["alasan"].lower()
 
 
 def test_overwrite_keeps_prediction_history_but_supersedes_old_pending(tmp_path, monkeypatch):

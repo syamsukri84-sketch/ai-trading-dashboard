@@ -14,6 +14,8 @@ try:
 except ImportError:
     YahooQueryTicker = None
 
+from src.utils.atomic_io import atomic_write_csv
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -225,7 +227,7 @@ def update_from_manual_dataframe(
     combined_df = pd.concat([existing_df, new_data], ignore_index=True)
     combined_df = combined_df.drop_duplicates(subset=["timestamp"], keep="last")
     combined_df = combined_df.sort_values("timestamp").reset_index(drop=True)
-    combined_df.to_csv(file_path, index=False)
+    atomic_write_csv(combined_df, file_path, index=False)
 
     return {
         "ticker": clean_ticker,
@@ -280,8 +282,16 @@ def run_auto_updater(
     yf_end_date = (today + timedelta(days=1)).strftime("%Y-%m-%d")
 
     for ticker in selected_tickers:
-        ticker_yf = f"{ticker}.JK" if not ticker.endswith(".JK") else ticker
-        clean_ticker = ticker.replace(".JK", "")
+        # Simbol indeks (mis. "^JKSE" -- IHSG) SUDAH lengkap di Yahoo Finance
+        # dan TIDAK boleh diberi akhiran ".JK" (itu cuma untuk ticker saham
+        # individual Indonesia, mis. "BBRI" -> "BBRI.JK"). Sebelum perbaikan
+        # ini, "^JKSE" selalu diminta sebagai "^JKSE.JK" yang tidak pernah
+        # ada di Yahoo Finance -- akibatnya data indeks IHSG TIDAK PERNAH
+        # berhasil diunduh, dan fitur korelasi/beta-terhadap-pasar di seluruh
+        # sistem selalu jatuh ke nilai default netral (bukan data sungguhan).
+        is_index_symbol = ticker.startswith("^")
+        ticker_yf = ticker if (is_index_symbol or ticker.endswith(".JK")) else f"{ticker}.JK"
+        clean_ticker = ticker if is_index_symbol else ticker.replace(".JK", "")
         file_path = os.path.join(data_dir, f"{clean_ticker}_raw.csv")
 
         existing_df = None
@@ -328,7 +338,7 @@ def run_auto_updater(
             notify(clean_ticker, f"[{clean_ticker}] Tidak ada tanggal perdagangan unik baru.")
             continue
 
-        combined_df.to_csv(file_path, index=False)
+        atomic_write_csv(combined_df, file_path, index=False)
         summary["updated"].append({
             "ticker": clean_ticker,
             "provider": provider_name,

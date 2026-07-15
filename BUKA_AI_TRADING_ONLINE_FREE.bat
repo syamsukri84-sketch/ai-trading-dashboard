@@ -9,8 +9,8 @@ if exist ".env" (
     )
 )
 
-if not exist ".venv\Scripts\streamlit.exe" (
-    echo Streamlit tidak ditemukan di virtual environment project.
+if not exist ".venv\Scripts\python.exe" (
+    echo Python virtual environment project tidak ditemukan.
     echo Jalankan dulu:
     echo .venv\Scripts\python.exe -m pip install -r requirements.txt
     pause
@@ -39,7 +39,7 @@ if "%CLOUDFLARED_CMD%"=="" (
 )
 
 echo Membuka AI Trading Dashboard lokal...
-start "AI Trading Dashboard" cmd /k ".venv\Scripts\streamlit.exe run streamlit_app.py --server.port 8502 --server.address localhost --browser.gatherUsageStats false"
+start "AI Trading Dashboard" cmd /k .venv\Scripts\python.exe -m streamlit run streamlit_app.py --server.port 8502 --server.address localhost --browser.gatherUsageStats false
 
 timeout /t 8 /nobreak >nul
 

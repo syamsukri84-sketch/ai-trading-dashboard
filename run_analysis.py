@@ -14,23 +14,13 @@ from src.models.lstm_projector import LSTMPriceProjector
 from src.models.price_projector import PriceProjector
 from src.models.direction_classifier import DirectionClassifier
 from src.models.baseline_strategies import evaluate_baseline_strategies
-from src.models.walk_forward import walk_forward_direction_validation, walk_forward_return_validation
+from src.models.walk_forward import EDGE_THRESHOLD_PCT, walk_forward_direction_validation, walk_forward_return_validation
+from src.explainability.shap_explainer import explain_direction_prediction, explain_return_prediction
 from src.trading.reliability_ensemble import get_reliability_weights, weighted_direction_probability
 from src.utils.accuracy_tracker import PREDICTIONS_FILE, evaluate_pending_predictions, log_prediction
 from src.utils.model_guardrails import assert_no_training_leakage
-from src.utils.model_store import save_model_artifact
+from src.utils.model_store import list_ticker_models, load_model_artifact, save_model_artifact
 from src.utils.training_policy import record_training_run
-
-try:
-    from lightgbm import LGBMClassifier, LGBMRegressor
-except ImportError:
-    LGBMClassifier = None
-    LGBMRegressor = None
-
-try:
-    import xgboost as xgb
-except ImportError:
-    xgb = None
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -138,6 +128,34 @@ def _has_prediction_for_date(pred_df: pd.DataFrame, ticker: str, current_date: s
         horizon_days=1,
         prediction_purpose="NEXT_DAY_DIRECTION",
     )
+
+
+def _load_cached_lstm_if_trained_today(ticker: str, horizon_days: int, prediction_purpose: str, current_date_str: str):
+    """Kalau sudah ada artifact LSTM tersimpan untuk ticker+horizon+purpose ini
+    dengan trained_until_date == current_date_str, muat dan pakai ulang alih-alih
+    melatih ulang dari nol. LSTM (PyTorch) jauh lebih mahal dilatih dibanding
+    model lain di pipeline ini -- kalau data belum berubah sejak run terakhir
+    hari ini (tanggal sama), melatih ulang cuma buang waktu tanpa hasil beda.
+    Return (model, record) kalau ketemu & berhasil dimuat, selalu (None, None)
+    kalau tidak ada atau gagal dimuat (fallback aman: caller akan melatih baru)."""
+    try:
+        records = list_ticker_models(ticker)
+    except Exception:
+        return None, None
+    for record in records:
+        if (
+            record.get("model_name") == "LSTM"
+            and int(record.get("horizon_days", -1)) == int(horizon_days)
+            and str(record.get("prediction_purpose", "")).upper().strip() == str(prediction_purpose).upper().strip()
+            and str(record.get("trained_until_date", "")) == str(current_date_str)
+        ):
+            try:
+                model_obj = load_model_artifact(record)
+            except Exception:
+                return None, None
+            if model_obj is not None:
+                return model_obj, record
+    return None, None
 
 
 def run_backfill_analysis(
@@ -384,10 +402,17 @@ def run_full_analysis(
     prediction_run_type: str | None = None,
     skip_completed: bool = True,
     completed_required_models: list[str] | tuple[str, ...] | None = None,
+    include_lstm: bool = False,
 ) -> dict:
     """
     Menjalankan pipeline analisis end-to-end untuk emiten terpilih.
     Jika tickers tidak dikirim, daftar emiten dibaca dari config/stocks.yaml.
+
+    include_lstm: default False -- LSTM (PyTorch) adalah model paling mahal
+    dilatih di pipeline ini dan belum pernah divalidasi walk-forward (beda
+    dari DirectionClassifier/PriceProjector yang sudah). Konsisten dengan
+    parameter `include_lstm` yang sudah ada di run_backfill_analysis. Set True
+    eksplisit kalau butuh proyeksi LSTM. Lihat audit codebase 2026-07-12.
     """
     if tickers is None:
         try:
@@ -518,11 +543,13 @@ def run_full_analysis(
 
             projection_horizons = [3, 5, 10]
             projections = {}
+            projector_objects = {}
             lightgbm_projections = {}
             artifact_records = {}
             for project_horizon in projection_horizons:
                 projector = PriceProjector(projection_horizon=project_horizon)
                 projector.train(features_df)
+                projector_objects[project_horizon] = projector
                 purpose = "THREE_DAY_FORECAST" if project_horizon == 3 else f"H{project_horizon}_TREND_FORECAST"
                 artifact_records[("XGBoost", project_horizon, purpose)] = save_model_artifact(
                     ticker,
@@ -595,34 +622,83 @@ def run_full_analysis(
             )
             ensemble_direction = weighted_direction_probability(classifier_predictions, reliability_weights)
 
+            # XAI: jelaskan prediksi arah H+1 lewat kontribusi SHAP per fitur,
+            # pakai satu classifier tree yang tersedia sebagai wakil (bukan
+            # rata-rata seluruh ensemble -- lihat catatan di shap_explainer.py).
+            xai_direction_h1 = {"available": False, "reason": "Tidak ada classifier tree yang berhasil dilatih."}
+            for model_key in ("LIGHTGBM", "XGBOOST", "RANDOM_FOREST"):
+                explainer_classifier = classifiers.get(model_key)
+                if explainer_classifier is None:
+                    continue
+                try:
+                    latest_row = features_df[explainer_classifier.feature_names_].iloc[[-1]]
+                    xai_direction_h1 = explain_direction_prediction(
+                        explainer_classifier.model, latest_row, explainer_classifier.feature_names_
+                    )
+                except Exception as e:
+                    xai_direction_h1 = {"available": False, "reason": f"Penjelasan SHAP gagal: {e}"}
+                break
+
             project_horizon = 3
             projection = projections[project_horizon]
-            lstm_projector = LSTMPriceProjector(projection_horizon=project_horizon, lookback=20)
-            lstm_projector.train(features_df, epochs=lstm_epochs)
-            artifact_records[("LSTM", project_horizon, "THREE_DAY_FORECAST")] = save_model_artifact(
-                ticker,
-                "LSTM",
-                project_horizon,
-                "THREE_DAY_FORECAST",
-                lstm_projector,
-                current_date_str,
-                training_run_id=training_run_id,
-                run_type=prediction_run_type,
-            )
-            lstm_projection = lstm_projector.predict(features_df)
-            next_day_lstm_projector = LSTMPriceProjector(projection_horizon=1, lookback=20)
-            next_day_lstm_projector.train(features_df, epochs=lstm_epochs)
-            artifact_records[("LSTM", 1, "NEXT_DAY_DIRECTION")] = save_model_artifact(
-                ticker,
-                "LSTM",
-                1,
-                "NEXT_DAY_DIRECTION",
-                next_day_lstm_projector,
-                current_date_str,
-                training_run_id=training_run_id,
-                run_type=prediction_run_type,
-            )
-            next_day_lstm_projection = next_day_lstm_projector.predict(features_df)
+
+            # XAI: jelaskan proyeksi return H+3 (model XGBoost utama) lewat
+            # kontribusi SHAP per fitur.
+            xai_return_h3 = {"available": False, "reason": "Model proyeksi H+3 tidak tersedia."}
+            h3_projector_obj = projector_objects.get(3)
+            if h3_projector_obj is not None:
+                try:
+                    latest_row_h3 = features_df[h3_projector_obj.feature_names_].iloc[[-1]]
+                    xai_return_h3 = explain_return_prediction(
+                        h3_projector_obj.model, latest_row_h3, h3_projector_obj.feature_names_
+                    )
+                except Exception as e:
+                    xai_return_h3 = {"available": False, "reason": f"Penjelasan SHAP gagal: {e}"}
+            if include_lstm:
+                cached_lstm_h3, cached_record_h3 = _load_cached_lstm_if_trained_today(
+                    ticker, project_horizon, "THREE_DAY_FORECAST", current_date_str
+                )
+                if cached_lstm_h3 is not None:
+                    lstm_projector = cached_lstm_h3
+                    artifact_records[("LSTM", project_horizon, "THREE_DAY_FORECAST")] = cached_record_h3
+                else:
+                    lstm_projector = LSTMPriceProjector(projection_horizon=project_horizon, lookback=20)
+                    lstm_projector.train(features_df, epochs=lstm_epochs)
+                    artifact_records[("LSTM", project_horizon, "THREE_DAY_FORECAST")] = save_model_artifact(
+                        ticker,
+                        "LSTM",
+                        project_horizon,
+                        "THREE_DAY_FORECAST",
+                        lstm_projector,
+                        current_date_str,
+                        training_run_id=training_run_id,
+                        run_type=prediction_run_type,
+                    )
+                lstm_projection = lstm_projector.predict(features_df)
+
+                cached_lstm_h1, cached_record_h1 = _load_cached_lstm_if_trained_today(
+                    ticker, 1, "NEXT_DAY_DIRECTION", current_date_str
+                )
+                if cached_lstm_h1 is not None:
+                    next_day_lstm_projector = cached_lstm_h1
+                    artifact_records[("LSTM", 1, "NEXT_DAY_DIRECTION")] = cached_record_h1
+                else:
+                    next_day_lstm_projector = LSTMPriceProjector(projection_horizon=1, lookback=20)
+                    next_day_lstm_projector.train(features_df, epochs=lstm_epochs)
+                    artifact_records[("LSTM", 1, "NEXT_DAY_DIRECTION")] = save_model_artifact(
+                        ticker,
+                        "LSTM",
+                        1,
+                        "NEXT_DAY_DIRECTION",
+                        next_day_lstm_projector,
+                        current_date_str,
+                        training_run_id=training_run_id,
+                        run_type=prediction_run_type,
+                    )
+                next_day_lstm_projection = next_day_lstm_projector.predict(features_df)
+            else:
+                lstm_projection = None
+                next_day_lstm_projection = None
 
             garch_model = GARCHModel(p=1, q=1)
             garch_model.train(df)
@@ -655,9 +731,11 @@ def run_full_analysis(
                 log_prediction(ticker, "XGBoost", current_date_str, horizon_target_date, horizon_projection["projected_price"], current_price, horizon_days=horizon, prediction_purpose=purpose, **artifact_log_kwargs("XGBoost", horizon, purpose))
                 if horizon in lightgbm_projections:
                     log_prediction(ticker, "LightGBM", current_date_str, horizon_target_date, lightgbm_projections[horizon]["projected_price"], current_price, horizon_days=horizon, prediction_purpose=purpose, **artifact_log_kwargs("LightGBM", horizon, purpose))
-            log_prediction(ticker, "LSTM", current_date_str, target_date_str, lstm_projection["projected_price"], current_price, horizon_days=project_horizon, prediction_purpose="THREE_DAY_FORECAST", **artifact_log_kwargs("LSTM", project_horizon, "THREE_DAY_FORECAST"))
+            if include_lstm:
+                log_prediction(ticker, "LSTM", current_date_str, target_date_str, lstm_projection["projected_price"], current_price, horizon_days=project_horizon, prediction_purpose="THREE_DAY_FORECAST", **artifact_log_kwargs("LSTM", project_horizon, "THREE_DAY_FORECAST"))
             log_prediction(ticker, "XGBoost", current_date_str, next_day_target_date_str, next_day_projection["projected_price"], current_price, horizon_days=1, prediction_purpose="NEXT_DAY_DIRECTION", **artifact_log_kwargs("XGBoost", 1, "NEXT_DAY_DIRECTION"))
-            log_prediction(ticker, "LSTM", current_date_str, next_day_target_date_str, next_day_lstm_projection["projected_price"], current_price, horizon_days=1, prediction_purpose="NEXT_DAY_DIRECTION", **artifact_log_kwargs("LSTM", 1, "NEXT_DAY_DIRECTION"))
+            if include_lstm:
+                log_prediction(ticker, "LSTM", current_date_str, next_day_target_date_str, next_day_lstm_projection["projected_price"], current_price, horizon_days=1, prediction_purpose="NEXT_DAY_DIRECTION", **artifact_log_kwargs("LSTM", 1, "NEXT_DAY_DIRECTION"))
             for model_name, clf_prediction in classifier_predictions.items():
                 direction_price = current_price * (1.01 if clf_prediction["direction"] == "NAIK" else 0.99)
                 direction_model_name = f"Direction-{model_name}"
@@ -695,28 +773,66 @@ def run_full_analysis(
 
             baseline_h1 = evaluate_baseline_strategies(features_df, horizon_days=1)
             baseline_h3 = evaluate_baseline_strategies(features_df, horizon_days=3)
-            direction_factory = (
-                lambda: LGBMClassifier(n_estimators=120, learning_rate=0.05, random_state=42, verbosity=-1)
-                if LGBMClassifier is not None
-                else xgb.XGBClassifier(n_estimators=120, learning_rate=0.05, random_state=42, eval_metric="logloss")
-            )
-            return_factory = (
-                lambda: LGBMRegressor(n_estimators=120, learning_rate=0.05, random_state=42, verbosity=-1)
-                if LGBMRegressor is not None
-                else xgb.XGBRegressor(n_estimators=120, learning_rate=0.05, random_state=42, objective="reg:squarederror")
-            )
+            # PENTING: factory di sini HARUS membangun model dengan hyperparameter
+            # yang SAMA PERSIS dengan DirectionClassifier/PriceProjector yang
+            # sungguhan dipakai untuk prediksi live -- sebelumnya factory ini
+            # mendefinisikan ulang LightGBM secara terpisah (n_estimators=120,
+            # learning_rate=0.05, tanpa regularisasi apa pun), beda dari
+            # hyperparameter teregulasi yang divalidasi & diterapkan ke
+            # DirectionClassifier._build_model(). Akibatnya flag
+            # has_genuine_edge_* bisa mengevaluasi model yang BUKAN model yang
+            # sebenarnya dipakai untuk prediksi yang tampil ke pengguna. Pakai
+            # instance asli supaya kalau hyperparameter produksi berubah,
+            # validasi walk-forward ikut berubah otomatis (satu sumber
+            # kebenaran, bukan dua definisi yang bisa diam-diam berbeda).
+            #
+            # Sebelumnya factory ini juga memakai calibrate=False -- padahal
+            # prediksi live (baris ~565 di atas) memakai calibrate=True default
+            # (dibungkus CalibratedClassifierCV di DirectionClassifier.train()).
+            # build_walk_forward_estimator() mereplikasi wrapping kalibrasi
+            # yang SAMA supaya walk-forward menguji objek yang benar-benar
+            # identik dengan yang dideploy, bukan estimator mentah pra-kalibrasi.
+            # Lihat audit codebase 2026-07-12.
+            direction_factory = lambda: DirectionClassifier(horizon_days=1, model_type="lightgbm").build_walk_forward_estimator(n_train_rows=252)
+            return_factory = lambda: PriceProjector(projection_horizon=3, model_type="xgboost").model
             wf_direction_h1 = walk_forward_direction_validation(features_df, direction_factory, horizon_days=1)
             wf_return_h3 = walk_forward_return_validation(features_df, return_factory, horizon_days=3)
             wf_return_h5 = walk_forward_return_validation(features_df, return_factory, horizon_days=5)
             wf_return_h10 = walk_forward_return_validation(features_df, return_factory, horizon_days=10)
 
+            has_edge_h1 = wf_direction_h1["edge_vs_baseline_pct"] >= EDGE_THRESHOLD_PCT
+            has_edge_h3 = wf_return_h3["edge_vs_mean_mae_pct"] > 0 and wf_return_h3["direction_accuracy_pct"] >= wf_return_h3["baseline_mean_direction_accuracy_pct"] + EDGE_THRESHOLD_PCT
+            has_edge_h5 = wf_return_h5["edge_vs_mean_mae_pct"] > 0 and wf_return_h5["direction_accuracy_pct"] >= wf_return_h5["baseline_mean_direction_accuracy_pct"] + EDGE_THRESHOLD_PCT
+            has_edge_h10 = wf_return_h10["edge_vs_mean_mae_pct"] > 0 and wf_return_h10["direction_accuracy_pct"] >= wf_return_h10["baseline_mean_direction_accuracy_pct"] + EDGE_THRESHOLD_PCT
+
             print(f"\nPROYEKSI HARGA {project_horizon} HARI KE DEPAN ({ticker}):")
             print(f"   Harga Terakhir   : Rp {current_price:,.2f}")
             print(f"   [XGBoost] Target : Rp {projection['projected_price']:,.2f} ({projection['projected_return_pct']:+.2f}%)")
-            print(f"   [LSTM] Target    : Rp {lstm_projection['projected_price']:,.2f} ({lstm_projection['projected_return_pct']:+.2f}%)")
+            if lstm_projection is not None:
+                print(f"   [LSTM] Target    : Rp {lstm_projection['projected_price']:,.2f} ({lstm_projection['projected_return_pct']:+.2f}%)")
             print(f"   [Direction Ensemble H+1] {ensemble_direction['direction']} | Confidence {ensemble_direction['confidence_pct']:.2f}%")
             print(f"   [GARCH] Volatilitas: {garch_projection.get('projected_volatility_pct', 0.0):,.2f}% per hari")
             print(f"   [GARCH] VaR 95%    : {garch_projection.get('value_at_risk_95_pct', 0.0):,.2f}%")
+            print(f"   WALK-FORWARD vs BASELINE NAIF (edge asli, bukan akurasi mentah):")
+            print(f"     H+1 arah : model={wf_direction_h1['direction_accuracy_pct']:.1f}% vs baseline={wf_direction_h1['baseline_majority_accuracy_pct']:.1f}% "
+                  f"(edge={wf_direction_h1['edge_vs_baseline_pct']:+.1f}pp) -> {'ADA EDGE' if has_edge_h1 else 'TIDAK ADA EDGE NYATA'}")
+            print(f"     H+3 return: MAE model={wf_return_h3['mae_pct']:.2f}% vs baseline-mean={wf_return_h3['baseline_mean_mae_pct']:.2f}% "
+                  f"(edge={wf_return_h3['edge_vs_mean_mae_pct']:+.2f}pp) -> {'ADA EDGE' if has_edge_h3 else 'TIDAK ADA EDGE NYATA'}")
+            print(f"     H+5 return: MAE model={wf_return_h5['mae_pct']:.2f}% vs baseline-mean={wf_return_h5['baseline_mean_mae_pct']:.2f}% "
+                  f"(edge={wf_return_h5['edge_vs_mean_mae_pct']:+.2f}pp) -> {'ADA EDGE' if has_edge_h5 else 'TIDAK ADA EDGE NYATA'}")
+            print(f"     H+10 return: MAE model={wf_return_h10['mae_pct']:.2f}% vs baseline-mean={wf_return_h10['baseline_mean_mae_pct']:.2f}% "
+                  f"(edge={wf_return_h10['edge_vs_mean_mae_pct']:+.2f}pp) -> {'ADA EDGE' if has_edge_h10 else 'TIDAK ADA EDGE NYATA'}")
+            print("   KENAPA MODEL MEMPREDIKSI INI (XAI/SHAP, fitur paling berpengaruh):")
+            if xai_direction_h1["available"]:
+                for f in xai_direction_h1["top_features"][:3]:
+                    print(f"     [Arah H+1] {f['feature']}={f['value']:.2f} -> {f['direction']} (kontribusi {f['contribution']:+.4f})")
+            else:
+                print(f"     [Arah H+1] Penjelasan tidak tersedia: {xai_direction_h1['reason']}")
+            if xai_return_h3["available"]:
+                for f in xai_return_h3["top_features"][:3]:
+                    print(f"     [Return H+3] {f['feature']}={f['value']:.2f} -> {f['direction']} (kontribusi {f['contribution']:+.4f})")
+            else:
+                print(f"     [Return H+3] Penjelasan tidak tersedia: {xai_return_h3['reason']}")
             print("-" * 40)
 
             summary["analyzed"].append({
@@ -725,9 +841,9 @@ def run_full_analysis(
                 "target_date": target_date_str,
                 "next_day_target_date": next_day_target_date_str,
                 "xgboost_projected_return_pct": projection["projected_return_pct"],
-                "lstm_projected_return_pct": lstm_projection["projected_return_pct"],
+                "lstm_projected_return_pct": lstm_projection["projected_return_pct"] if lstm_projection is not None else None,
                 "xgboost_next_day_return_pct": next_day_projection["projected_return_pct"],
-                "lstm_next_day_return_pct": next_day_lstm_projection["projected_return_pct"],
+                "lstm_next_day_return_pct": next_day_lstm_projection["projected_return_pct"] if next_day_lstm_projection is not None else None,
                 "xgboost_h5_return_pct": projections[5]["projected_return_pct"],
                 "xgboost_h10_return_pct": projections[10]["projected_return_pct"],
                 "lightgbm_h3_return_pct": lightgbm_projections.get(3, {}).get("projected_return_pct"),
@@ -741,6 +857,32 @@ def run_full_analysis(
                 "walk_forward_h10_accuracy_pct": wf_return_h10["direction_accuracy_pct"],
                 "baseline_h1_best_accuracy_pct": float(baseline_h1["direction_accuracy_pct"].max()) if not baseline_h1.empty else 0.0,
                 "baseline_h3_best_accuracy_pct": float(baseline_h3["direction_accuracy_pct"].max()) if not baseline_h3.empty else 0.0,
+                "walk_forward_h1_baseline_majority_pct": wf_direction_h1["baseline_majority_accuracy_pct"],
+                "walk_forward_h1_edge_pct": wf_direction_h1["edge_vs_baseline_pct"],
+                "walk_forward_h1_pred_positive_rate_pct": wf_direction_h1["pred_positive_rate_pct"],
+                "walk_forward_h3_edge_mae_pct": wf_return_h3["edge_vs_mean_mae_pct"],
+                "walk_forward_h5_edge_mae_pct": wf_return_h5["edge_vs_mean_mae_pct"],
+                "walk_forward_h10_edge_mae_pct": wf_return_h10["edge_vs_mean_mae_pct"],
+                "has_genuine_edge_h1": bool(has_edge_h1),
+                "has_genuine_edge_h3": bool(has_edge_h3),
+                "has_genuine_edge_h5": bool(has_edge_h5),
+                "has_genuine_edge_h10": bool(has_edge_h10),
+                # PENTING: flag has_genuine_edge_* di atas HANYA gate effect-size
+                # (edge_vs_baseline_pct >= EDGE_THRESHOLD_PCT) untuk SATU ticker
+                # ini saja -- BELUM dikoreksi multiple-testing (FDR), karena
+                # koreksi itu butuh p-value dari SELURUH universe ticker
+                # sekaligus (lihat scripts/screen_genuine_edge.py +
+                # data/edge_screening_status.json, yang MEMANG dikoreksi FDR
+                # dan jadi acuan gating trust di dashboard). Angka di run
+                # satu-ticker ini untuk observasi cepat, bukan keputusan trust.
+                "walk_forward_h1_pvalue": wf_direction_h1.get("p_value_vs_baseline", 1.0),
+                "walk_forward_h3_pvalue": wf_return_h3.get("p_value_vs_baseline", 1.0),
+                "walk_forward_h5_pvalue": wf_return_h5.get("p_value_vs_baseline", 1.0),
+                "walk_forward_h10_pvalue": wf_return_h10.get("p_value_vs_baseline", 1.0),
+                "xai_direction_h1": xai_direction_h1,
+                "xai_return_h3": xai_return_h3,
+                "garch_volatility_pct": float(garch_projection.get("projected_volatility_pct", 0.0)),
+                "garch_var95_pct": float(garch_projection.get("value_at_risk_95_pct", 0.0)),
             })
             if progress_callback:
                 progress_callback({

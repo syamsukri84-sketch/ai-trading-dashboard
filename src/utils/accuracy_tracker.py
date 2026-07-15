@@ -3,6 +3,8 @@ import os
 from datetime import datetime, timedelta
 from pandas.errors import EmptyDataError
 from data_loader import DataLoader
+from src.models.walk_forward import EDGE_THRESHOLD_PCT
+from src.utils.atomic_io import atomic_write_csv
 import logging
 
 logger = logging.getLogger(__name__)
@@ -191,7 +193,7 @@ def log_prediction(
     else:
         df = new_data
         
-    df.to_csv(PREDICTIONS_FILE, index=False)
+    atomic_write_csv(df, PREDICTIONS_FILE, index=False)
     logger.info(f"Prediksi {model_name} untuk {ticker} berhasil dicatat.")
 
 def evaluate_pending_predictions():
@@ -329,8 +331,8 @@ def evaluate_pending_predictions():
 
     # Simpan kembali status prediksi
     if evaluated_count > 0:
-        df_preds.to_csv(PREDICTIONS_FILE, index=False)
-        
+        atomic_write_csv(df_preds, PREDICTIONS_FILE, index=False)
+
         # Simpan hasil evaluasi ke accuracy_log.csv
         _ensure_dir(ACCURACY_FILE)
         new_acc_df = pd.DataFrame(accuracy_records)
@@ -342,7 +344,7 @@ def evaluate_pending_predictions():
             acc_df = pd.concat([acc_df, new_acc_df], ignore_index=True)
         else:
             acc_df = new_acc_df
-        acc_df.to_csv(ACCURACY_FILE, index=False)
+        atomic_write_csv(acc_df, ACCURACY_FILE, index=False)
         logger.info(f"Berhasil mengevaluasi {evaluated_count} prediksi.")
 
 def _filter_accuracy_purpose(df: pd.DataFrame, prediction_purpose: str | None) -> pd.DataFrame:
@@ -520,6 +522,13 @@ def get_model_trading_leaderboard(
     df["strategy_return_pct"] = df["actual_return_pct"].fillna(0) * direction_sign
     df["win"] = df["strategy_return_pct"] > 0
     df["naik_win"] = df["is_naik_signal"] & (df["actual_return_pct"] > 0)
+    # Arah aktual dari return yang benar-benar terjadi (bukan prediksi) -- dipakai
+    # untuk baseline "tebak arah mayoritas" di bawah, sama seperti pendekatan
+    # walk_forward.py: akurasi mentah TIDAK BERARTI apa-apa sendirian kalau
+    # periode evaluasi kebetulan didominasi satu arah (mis. saat market
+    # trending naik terus, tebak "NAIK" terus juga akan kelihatan akurat tanpa
+    # skill apa pun).
+    df["actual_direction_up"] = df["actual_return_pct"].fillna(0) > 0
 
     def profit_factor(series: pd.Series) -> float:
         gross_profit = series[series > 0].sum()
@@ -527,6 +536,10 @@ def get_model_trading_leaderboard(
         if gross_loss == 0:
             return float("inf") if gross_profit > 0 else 0.0
         return float(gross_profit / gross_loss)
+
+    def majority_baseline_pct(series: pd.Series) -> float:
+        up_rate = series.mean()
+        return max(up_rate, 1 - up_rate) * 100.0
 
     leaderboard = df.groupby(["ticker", "model_name"]).agg(
         total_evaluations=("direction_correct", "count"),
@@ -539,7 +552,12 @@ def get_model_trading_leaderboard(
         precision_naik_pct=("naik_win", lambda x: x.sum() / max(int(df.loc[x.index, "is_naik_signal"].sum()), 1) * 100),
         avg_return_after_naik_pct=("actual_return_pct", lambda x: x[df.loc[x.index, "is_naik_signal"]].mean()),
         profit_factor=("strategy_return_pct", profit_factor),
+        baseline_majority_accuracy_pct=("actual_direction_up", majority_baseline_pct),
     ).reset_index()
+    leaderboard["baseline_majority_accuracy_pct"] = leaderboard["baseline_majority_accuracy_pct"].round(2)
+    leaderboard["edge_vs_baseline_pct"] = (
+        leaderboard["direction_accuracy_pct"] - leaderboard["baseline_majority_accuracy_pct"]
+    ).round(2)
 
     sample_factor = (leaderboard["total_evaluations"] / max(min_evaluations, 1)).clip(upper=1.0)
     accuracy_component = leaderboard["direction_accuracy_pct"].fillna(0) / 100.0
@@ -649,11 +667,21 @@ def get_model_trust_audit(
     prediction_purpose: str | None = "NEXT_DAY_DIRECTION",
     min_evaluations: int = 10,
     min_accuracy_pct: float = 55.0,
+    min_edge_vs_baseline_pct: float = EDGE_THRESHOLD_PCT,
     min_profit_factor: float = 1.2,
     max_abs_calibration_gap_pct: float = 15.0,
     include_backfill: bool = False,
 ) -> pd.DataFrame:
-    """Audit kelayakan model per saham untuk dipakai sebagai acuan trading."""
+    """Audit kelayakan model per saham untuk dipakai sebagai acuan trading.
+
+    `min_edge_vs_baseline_pct` default-nya sama persis dengan
+    `EDGE_THRESHOLD_PCT` di walk_forward.py (satu konstanta dipakai bersama
+    supaya tidak diam-diam berbeda ambang): akurasi arah
+    mentah bisa tinggi murni karena base rate periode evaluasi (mis. saham
+    kebetulan naik terus), jadi status "LAYAK DIPERCAYA" TIDAK diberikan
+    kalau model belum mengalahkan tebakan mayoritas naif dengan margin yang
+    berarti pada periode evaluasi yang sama -- lihat `edge_vs_baseline_pct`.
+    """
     leaderboard = get_model_trading_leaderboard(
         accuracy_file=accuracy_file,
         prediction_purpose=prediction_purpose,
@@ -683,8 +711,9 @@ def get_model_trust_audit(
     audit["model_key"] = audit["model_name"].astype(str).str.upper().str.strip()
     audit = audit.merge(calibration_by_model, on="model_key", how="left")
     audit["calibration_gap_pct"] = audit["calibration_gap_pct"].fillna(999.0)
-    audit["walk_forward_score"] = audit["direction_accuracy_pct"].fillna(0.0)
-    audit["beats_baseline"] = audit["profit_factor"].fillna(0.0) >= min_profit_factor
+    audit["baseline_majority_accuracy_pct"] = audit["baseline_majority_accuracy_pct"].fillna(0.0)
+    audit["edge_vs_baseline_pct"] = audit["edge_vs_baseline_pct"].fillna(0.0)
+    audit["beats_baseline"] = audit["edge_vs_baseline_pct"] >= min_edge_vs_baseline_pct
 
     def status_for(row):
         reasons = []
@@ -692,6 +721,13 @@ def get_model_trust_audit(
             reasons.append("sample evaluasi belum cukup")
         if row["direction_accuracy_pct"] < min_accuracy_pct:
             reasons.append("akurasi arah belum cukup")
+        if row["edge_vs_baseline_pct"] < min_edge_vs_baseline_pct:
+            reasons.append(
+                f"akurasi {row['direction_accuracy_pct']:.1f}% belum unggul cukup jauh dari baseline "
+                f"tebak-mayoritas {row['baseline_majority_accuracy_pct']:.1f}% "
+                f"(edge {row['edge_vs_baseline_pct']:+.1f}pp < batas {min_edge_vs_baseline_pct:.1f}pp) -- "
+                f"akurasi tinggi bisa cuma kebetulan searah tren pasar, bukan skill model"
+            )
         if row["profit_factor"] < min_profit_factor:
             reasons.append("profit factor belum mengalahkan baseline")
         if abs(row["calibration_gap_pct"]) > max_abs_calibration_gap_pct:
@@ -723,9 +759,10 @@ def get_model_trust_audit(
         "alasan",
         "total_evaluations",
         "direction_accuracy_pct",
+        "baseline_majority_accuracy_pct",
+        "edge_vs_baseline_pct",
         "profit_factor",
         "calibration_gap_pct",
-        "walk_forward_score",
         "beats_baseline",
         "win_rate_pct",
         "naik_signals",

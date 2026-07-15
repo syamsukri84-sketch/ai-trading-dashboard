@@ -11,6 +11,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from run_analysis import run_full_analysis
+from src.utils.model_store import normalize_ticker
 
 
 JOB_DIR = os.path.join("data", "jobs")
@@ -71,9 +72,18 @@ def main():
         action="store_true",
         help="Latih ulang model walau prediksi FINAL tanggal terbaru sudah ada. Prediksi lama tetap mengikuti duplicate-policy.",
     )
+    parser.add_argument(
+        "--include-lstm",
+        action="store_true",
+        help=(
+            "Sertakan training LSTM (PyTorch, paling mahal dan belum divalidasi "
+            "walk-forward). Default mati supaya job background lebih ringan -- "
+            "lihat audit codebase 2026-07-12."
+        ),
+    )
     args = parser.parse_args()
 
-    tickers = [ticker.strip().upper() for ticker in args.tickers.split(",") if ticker.strip()]
+    tickers = [normalize_ticker(t) for t in args.tickers.split(",") if normalize_ticker(t)]
     state = {
         "status": "RUNNING",
         "started_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -154,6 +164,7 @@ def main():
             duplicate_policy=args.duplicate_policy,
             prediction_run_type=args.run_type,
             skip_completed=not bool(args.force_retrain),
+            include_lstm=bool(args.include_lstm),
         )
         state["status"] = "DONE"
         state["finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

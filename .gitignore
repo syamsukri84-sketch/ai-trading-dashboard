@@ -26,3 +26,7 @@ node_modules/
 package-lock.json
 package.json
 tools/*.exe
+*.log
+*.zip
+data/screening_run_log.txt
+_smoketest_launch*

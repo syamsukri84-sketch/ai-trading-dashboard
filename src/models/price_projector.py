@@ -26,7 +26,17 @@ class PriceProjector:
     def __init__(self, projection_horizon: int = 3, model_type: str = "xgboost"):
         self.projection_horizon = projection_horizon # Proyeksi untuk N hari ke depan
         self.model_type = str(model_type).lower().strip()
-        if self.model_type == "lightgbm" and LGBMRegressor is not None:
+        if self.model_type == "lightgbm":
+            if LGBMRegressor is None:
+                # JANGAN diam-diam ganti ke XGBoost -- pemanggil akan menyimpan/
+                # melabeli hasilnya sebagai "LightGBM" walau modelnya XGBoost
+                # (misleading). Lempar error supaya pemanggil (yang sudah
+                # membungkus konstruksi ini dengan try/except) melewati langkah
+                # ini dengan jelas, bukan melatih model duplikat berlabel salah.
+                raise ImportError(
+                    "model_type='lightgbm' diminta tapi library lightgbm tidak "
+                    "terinstal. Jalankan: pip install lightgbm"
+                )
             self.model = LGBMRegressor(
                 n_estimators=220,
                 learning_rate=0.04,

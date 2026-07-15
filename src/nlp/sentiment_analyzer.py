@@ -14,10 +14,58 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
+import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import accuracy_score, f1_score
+from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
+
+from src.utils.atomic_io import atomic_write_csv
+
+try:
+    import torch
+    from transformers import AutoModel, AutoModelForSequenceClassification, AutoTokenizer
+except ImportError:
+    torch = None
+    AutoModel = None
+    AutoModelForSequenceClassification = None
+    AutoTokenizer = None
+
+SENTIMENT_LABELS = ["POSITIVE", "NEUTRAL", "NEGATIVE"]
+
+# Model embedding beku (frozen feature extractor, encoder BIASA lewat
+# AutoModel -- BUKAN classifier siap pakai) untuk pendekatan "embedding +
+# classifier linear dilatih ulang di data lokal". Dipilih berdasarkan riset
+# 2026-07 (lihat memori/roadmap terkait): kandidat #1 adalah model
+# sentence-embedding Indonesia paling banyak diadopsi yang ditemukan; kandidat
+# #2 adalah encoder dasar IndoBERT (Indo4B corpus mencakup berita, bukan cuma
+# medsos) sebagai pembanding. KEDUANYA BUKAN classifier siap pakai -- classifier
+# tetap dilatih dari nol di 215 baris dataset lokal, cuma representasi fiturnya
+# yang beda dari TF-IDF.
+EMBEDDING_MODEL_IDS = {
+    "indo_e5_embedding_svm": "LazarusNLP/all-indo-e5-small-v4",
+    "indobert_embedding_svm": "indobenchmark/indobert-base-p1",
+}
+ENGINE_DISPLAY_NAMES = {
+    "tfidf_svm": "TF-IDF+SVM",
+    "indobert_pretrained": "IndoBERT Classifier Pretrained",
+    "indo_e5_embedding_svm": "Embedding Indo-E5+SVM",
+    "indobert_embedding_svm": "Embedding IndoBERT+SVM",
+}
+
+# Model IndoBERT PRETRAINED (sudah di-fine-tune untuk sentimen oleh pihak lain
+# di dataset publik "Prosa" dari benchmark IndoNLU -- BUKAN dilatih ulang dari
+# nol di sini, karena dataset lokal AI Trading cuma ~215 baris, terlalu kecil
+# untuk fine-tune transformer tanpa overfitting parah). Pemetaan label
+# diverifikasi manual dari model card HuggingFace (2026-07): config.json model
+# ini cuma expose "LABEL_0"/"LABEL_1"/"LABEL_2" generik, makna semantiknya TIDAK
+# ada di config, jadi peta di bawah ini WAJIB dicocokkan ulang kalau model_id
+# diganti ke model lain.
+INDOBERT_SENTIMENT_MODEL_ID = "mdhugol/indonesia-bert-sentiment-classification"
+INDOBERT_LABEL_MAP = {0: "POSITIVE", 1: "NEUTRAL", 2: "NEGATIVE"}
 
 
 POSITIVE_TERMS = {
@@ -73,7 +121,22 @@ def get_seed_sentiment_examples_path() -> Path:
 
 
 def get_practicum_sentiment_dataset_path() -> Path:
-    return _project_root().parent / "tugas_nlp_ai_trading" / "data" / "processed" / "financial_news_clean.csv"
+    """Dataset bootstrap (1320 baris, dari repo terpisah `tugas_nlp_ai_trading`)
+    dipakai untuk melatih model sentiment ketika dataset lokal proyek ini
+    (`get_local_sentiment_dataset_path`, ~216 baris) belum cukup.
+
+    Sebelum ini path menunjuk LANGSUNG ke `../tugas_nlp_ai_trading/...` di
+    luar proyek -- dependency ke repo sibling yang membuat `build_local_
+    sentiment_dataset()` (dipanggil OTOMATIS tiap hari lewat Task Scheduler)
+    diam-diam turun kualitas ke lexicon sederhana tanpa peringatan kalau
+    dijalankan di mesin lain / deploy cloud yang tidak punya folder itu.
+    Sekarang divendor sebagai snapshot ke dalam proyek ini supaya workflow
+    harian self-contained. Snapshot ini TIDAK otomatis sinkron dengan
+    perubahan di repo sibling -- kalau dataset practicum diperbarui, copy
+    ulang manual ke `data/sentiment/external/financial_news_clean.csv`.
+    Lihat audit codebase 2026-07-12.
+    """
+    return _project_root() / "data" / "sentiment" / "external" / "financial_news_clean.csv"
 
 
 def _default_external_dataset_path() -> Path:
@@ -103,7 +166,7 @@ def _train_sentiment_model_from_dataset(dataset_path: Path) -> Pipeline | None:
     train_df["label"] = train_df["label"].astype(str).str.upper().str.strip()
     train_df = train_df[
         train_df["clean_text"].str.len().gt(0)
-        & train_df["label"].isin(["POSITIVE", "NEUTRAL", "NEGATIVE"])
+        & train_df["label"].isin(SENTIMENT_LABELS)
     ]
     if len(train_df) < 30 or train_df["label"].nunique() < 2:
         return None
@@ -118,6 +181,358 @@ def _train_sentiment_model_from_dataset(dataset_path: Path) -> Pipeline | None:
     return model
 
 
+def _clean_labeled_dataset(dataset_path: Path) -> pd.DataFrame | None:
+    if not dataset_path.exists():
+        return None
+    try:
+        df = pd.read_csv(dataset_path)
+    except Exception:
+        return None
+    if "clean_text" not in df.columns or "label" not in df.columns:
+        return None
+
+    data = df[["clean_text", "label"]].dropna().copy()
+    data["clean_text"] = data["clean_text"].astype(str).map(clean_text)
+    data["label"] = data["label"].astype(str).str.upper().str.strip()
+    data = data[data["clean_text"].str.len().gt(0) & data["label"].isin(SENTIMENT_LABELS)]
+    return data
+
+
+def _split_labeled_dataset(
+    dataset_path: Path, random_state: int = 42
+) -> tuple[pd.DataFrame, pd.DataFrame] | tuple[None, None]:
+    """Split 75/25 (stratified) dipakai bersama oleh SEMUA evaluator engine
+    (TF-IDF+SVM, IndoBERT, embedding+SVM, dst.) supaya perbandingan antar
+    engine adil -- diuji di test set yang identik, bukan sampel berbeda yang
+    bisa membuat satu engine kelihatan lebih baik cuma karena kebetulan.
+
+    `random_state` bisa divariasikan lewat `compare_sentiment_engines_repeated`
+    -- PENTING: test set held-out proyek ini cuma ~54 baris, jadi verdict dari
+    SATU split (random_state tetap) bisa menyesatkan murni karena noise
+    statistik. Dibuktikan langsung 2026-07: pada random_state=42, embedding
+    IndoBERT+SVM sempat 'menang' (68.5% vs 66.7%), tapi di 4 dari 5 seed lain
+    TF-IDF+SVM menang dengan margin lebih besar (rata-rata 73.3% vs 70.7%).
+    Jangan mengambil keputusan produksi dari satu split saja.
+    """
+    data = _clean_labeled_dataset(dataset_path)
+    if data is None:
+        return None, None
+    label_counts = data["label"].value_counts()
+    if len(data) < 30 or data["label"].nunique() < 2 or label_counts.min() < 2:
+        return None, None
+
+    try:
+        train_df, test_df = train_test_split(
+            data, test_size=0.25, stratify=data["label"], random_state=random_state
+        )
+    except ValueError:
+        return None, None
+    if test_df.empty or train_df["label"].nunique() < 2:
+        return None, None
+    return train_df, test_df
+
+
+def _classification_metrics(y_true, y_pred) -> dict:
+    f1_scores = f1_score(y_true, y_pred, labels=SENTIMENT_LABELS, average=None, zero_division=0)
+    return {
+        "accuracy_pct": round(float(accuracy_score(y_true, y_pred)) * 100.0, 1),
+        "f1_per_class": {
+            label: round(float(score), 3) for label, score in zip(SENTIMENT_LABELS, f1_scores)
+        },
+    }
+
+
+def _evaluate_sentiment_model(dataset_path: Path, random_state: int = 42) -> dict | None:
+    """Held-out train/test evaluation model TF-IDF+SVM produksi.
+
+    Dilatih ulang di split 75/25 (terpisah dari model produksi yang dilatih
+    di 100% data) supaya ini tetap pengujian out-of-sample yang jujur, bukan
+    akurasi latihan yang dilaporkan seolah performa asli. Mengembalikan None
+    kalau dataset terlalu kecil/timpang untuk split yang andal (mis. satu
+    kelas cuma <2 baris), bukan memaksakan angka.
+    """
+    train_df, test_df = _split_labeled_dataset(dataset_path, random_state=random_state)
+    if train_df is None:
+        return None
+
+    model = Pipeline(
+        steps=[
+            ("tfidf", TfidfVectorizer(ngram_range=(1, 2), min_df=1)),
+            ("classifier", LinearSVC(class_weight="balanced")),
+        ]
+    )
+    model.fit(train_df["clean_text"], train_df["label"])
+    y_pred = model.predict(test_df["clean_text"])
+    y_true = test_df["label"]
+
+    metrics = _classification_metrics(y_true, y_pred)
+    return {
+        "n_train": int(len(train_df)),
+        "n_test": int(len(test_df)),
+        **metrics,
+        "test_label_counts": {str(k): int(v) for k, v in test_df["label"].value_counts().to_dict().items()},
+    }
+
+
+def _evaluate_indobert_model(dataset_path: Path, random_state: int = 42) -> dict | None:
+    """Held-out evaluation IndoBERT PRETRAINED pada test set yang SAMA PERSIS
+    dengan `_evaluate_sentiment_model` (split sama, random_state sama) --
+    supaya perbandingan adil.
+
+    IndoBERT TIDAK dilatih ulang di sini (sengaja -- lihat catatan di
+    INDOBERT_SENTIMENT_MODEL_ID) -- train_df dipakai HANYA untuk menyamakan
+    proporsi split dengan evaluator TF-IDF+SVM, prediksi dijalankan langsung
+    dari bobot pretrained di test_df. Mengembalikan None kalau dataset tidak
+    cukup untuk split, ATAU kalau model IndoBERT sendiri tidak tersedia
+    (transformers belum terinstal / gagal dimuat/diunduh).
+    """
+    train_df, test_df = _split_labeled_dataset(dataset_path, random_state=random_state)
+    if train_df is None:
+        return None
+    if _load_indobert_sentiment_model() is None:
+        return None
+
+    predictions = []
+    skipped = 0
+    for text in test_df["clean_text"]:
+        result = _predict_with_indobert(text)
+        if result is None:
+            skipped += 1
+            predictions.append("NEUTRAL")
+            continue
+        predictions.append(result.label)
+
+    y_true = test_df["label"]
+    metrics = _classification_metrics(y_true, predictions)
+    return {
+        "n_train": int(len(train_df)),
+        "n_test": int(len(test_df)),
+        **metrics,
+        "test_label_counts": {str(k): int(v) for k, v in test_df["label"].value_counts().to_dict().items()},
+        "skipped_predictions": skipped,
+    }
+
+
+@lru_cache(maxsize=4)
+def _load_embedding_model(model_id: str):
+    """Memuat encoder BIASA (AutoModel, BUKAN ForSequenceClassification) untuk
+    dipakai sebagai ekstraktor embedding beku -- classifier tetap dilatih dari
+    nol di data lokal, bukan memakai classifier head siap pakai (yang sudah
+    terbukti gagal karena domain-mismatch di kasus IndoBERT pretrained
+    classifier). Mengembalikan None kalau library tidak ada atau model gagal
+    dimuat/diunduh."""
+    if AutoTokenizer is None or AutoModel is None:
+        return None
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        model = AutoModel.from_pretrained(model_id)
+        model.eval()
+    except Exception:
+        return None
+    return tokenizer, model
+
+
+def _mean_pool_embeddings(tokenizer, model, texts: list[str], batch_size: int = 16) -> np.ndarray:
+    """Attention-mask-aware mean pooling atas last_hidden_state -- terbukti
+    lebih baik dari [CLS] pooling untuk representasi kalimat pendek (Reimers &
+    Gurevych, Sentence-BERT 2019; diverifikasi ulang lewat riset 2026-07 untuk
+    proyek ini). Diproses per-batch supaya tidak membebani memori kalau
+    dataset bertambah besar di kemudian hari."""
+    all_embeddings = []
+    for start in range(0, len(texts), batch_size):
+        batch = texts[start:start + batch_size]
+        inputs = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=256)
+        with torch.no_grad():
+            token_embeddings = model(**inputs).last_hidden_state
+        attention_mask = inputs["attention_mask"].unsqueeze(-1).float()
+        summed = (token_embeddings * attention_mask).sum(dim=1)
+        counts = attention_mask.sum(dim=1).clamp(min=1e-9)
+        all_embeddings.append((summed / counts).numpy())
+    return np.concatenate(all_embeddings, axis=0)
+
+
+def _evaluate_embedding_classifier_model(dataset_path: Path, model_id: str, random_state: int = 42) -> dict | None:
+    """Held-out evaluation: ekstrak embedding BEKU dari `model_id` (encoder
+    tidak dilatih ulang), lalu latih LinearSVC dari NOL di embedding itu --
+    di test set yang SAMA PERSIS dengan evaluator lain. Kekuatan regularisasi
+    (C) dituning lewat StratifiedKFold HANYA di train set (tidak pernah
+    melihat test set), sesuai rekomendasi riset supaya rezim dimensi-tinggi
+    (768) vs sampel sedikit (~160) tidak overfit begitu saja.
+    """
+    train_df, test_df = _split_labeled_dataset(dataset_path, random_state=random_state)
+    if train_df is None:
+        return None
+    loaded = _load_embedding_model(model_id)
+    if loaded is None:
+        return None
+    tokenizer, model = loaded
+
+    try:
+        X_train_raw = _mean_pool_embeddings(tokenizer, model, train_df["clean_text"].tolist())
+        X_test_raw = _mean_pool_embeddings(tokenizer, model, test_df["clean_text"].tolist())
+    except Exception:
+        return None
+
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train_raw)
+    X_test = scaler.transform(X_test_raw)
+    y_train = train_df["label"]
+    y_test = test_df["label"]
+
+    n_splits = min(5, int(y_train.value_counts().min()))
+    if n_splits < 2:
+        classifier = LinearSVC(class_weight="balanced", C=1.0, max_iter=20000)
+        classifier.fit(X_train, y_train)
+    else:
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        search = GridSearchCV(
+            LinearSVC(class_weight="balanced", max_iter=20000),
+            param_grid={"C": [0.01, 0.1, 1.0, 10.0]},
+            cv=cv,
+            scoring="f1_macro",
+        )
+        search.fit(X_train, y_train)
+        classifier = search.best_estimator_
+
+    y_pred = classifier.predict(X_test)
+    metrics = _classification_metrics(y_test, y_pred)
+    return {
+        "n_train": int(len(train_df)),
+        "n_test": int(len(test_df)),
+        **metrics,
+        "test_label_counts": {str(k): int(v) for k, v in test_df["label"].value_counts().to_dict().items()},
+        "model_id": model_id,
+    }
+
+
+def compare_sentiment_engines(dataset_path: Path, random_state: int = 42) -> dict:
+    """Membandingkan TF-IDF+SVM (produksi) vs 3 alternatif berbasis model
+    bahasa pretrained di SATU split held-out (random_state tetap) -- cepat,
+    tapi lihat peringatan di `_split_labeled_dataset`: test set cuma ~54
+    baris, jadi hasil SATU split ini BISA menyesatkan murni karena noise
+    statistik. Untuk keputusan produksi, WAJIB pakai
+    `compare_sentiment_engines_repeated` (multi-seed), bukan fungsi ini saja.
+    """
+    tfidf_result = _evaluate_sentiment_model(dataset_path, random_state=random_state)
+    alternatives = {
+        "indobert_pretrained": _evaluate_indobert_model(dataset_path, random_state=random_state),
+        "indo_e5_embedding_svm": _evaluate_embedding_classifier_model(dataset_path, EMBEDDING_MODEL_IDS["indo_e5_embedding_svm"], random_state=random_state),
+        "indobert_embedding_svm": _evaluate_embedding_classifier_model(dataset_path, EMBEDDING_MODEL_IDS["indobert_embedding_svm"], random_state=random_state),
+    }
+    available_alternatives = {name: r for name, r in alternatives.items() if r is not None}
+
+    if tfidf_result is None:
+        verdict = "TIDAK BISA DIBANDINGKAN"
+        reason = "Baseline TF-IDF+SVM sendiri gagal dievaluasi (dataset terlalu kecil/tidak seimbang)."
+    elif not available_alternatives:
+        verdict = "TIDAK BISA DIBANDINGKAN"
+        reason = "Tidak ada engine alternatif yang berhasil dievaluasi (dependency belum terinstal, atau model gagal dimuat/diunduh)."
+    else:
+        tfidf_acc = tfidf_result["accuracy_pct"]
+        best_name = max(available_alternatives, key=lambda name: available_alternatives[name]["accuracy_pct"])
+        best_acc = available_alternatives[best_name]["accuracy_pct"]
+        best_label = ENGINE_DISPLAY_NAMES.get(best_name, best_name)
+        if best_acc > tfidf_acc:
+            verdict = f"{best_label.upper()} LEBIH BAIK"
+            reason = f"{best_label} ({best_acc:.1f}%) mengalahkan TF-IDF+SVM ({tfidf_acc:.1f}%) di test set yang sama."
+        elif best_acc == tfidf_acc:
+            verdict = "SERI"
+            reason = f"Akurasi terbaik alternatif ({best_label}) sama dengan TF-IDF+SVM ({tfidf_acc:.1f}%)."
+        else:
+            verdict = "TF-IDF+SVM LEBIH BAIK"
+            reason = f"TF-IDF+SVM ({tfidf_acc:.1f}%) masih mengungguli semua alternatif yang diuji (terbaik: {best_label} {best_acc:.1f}%)."
+
+    return {
+        "tfidf_svm": tfidf_result,
+        "indobert_pretrained": alternatives["indobert_pretrained"],
+        "indo_e5_embedding_svm": alternatives["indo_e5_embedding_svm"],
+        "indobert_embedding_svm": alternatives["indobert_embedding_svm"],
+        "verdict": verdict,
+        "verdict_reason": reason,
+    }
+
+
+def compare_sentiment_engines_repeated(dataset_path: Path, seeds: tuple[int, ...] = (1, 7, 42, 99, 123)) -> dict:
+    """Perbandingan ROBUST: ulangi `compare_sentiment_engines` di beberapa
+    random_state berbeda (bukan satu split tetap), lalu laporkan rata-rata +
+    win-rate per engine.
+
+    WAJIB dipakai sebelum memutuskan mengganti engine produksi -- BUKAN
+    `compare_sentiment_engines` dengan satu split saja. Dibuktikan langsung
+    2026-07: pada random_state=42 saja, embedding IndoBERT+SVM sempat
+    "menang" (68.5% vs 66.7%) dan sepintas terlihat seperti temuan positif
+    genuine -- tapi setelah diuji ulang di 5 seed berbeda, TF-IDF+SVM
+    ternyata menang di 4/5 split dengan rata-rata akurasi lebih tinggi
+    (73.3% vs 70.7%). Verdict dari satu split kecil (~54 baris test) TIDAK
+    cukup andal untuk keputusan produksi.
+    """
+    per_seed_results = [compare_sentiment_engines(dataset_path, random_state=seed) for seed in seeds]
+    engine_keys = ["tfidf_svm", "indobert_pretrained", "indo_e5_embedding_svm", "indobert_embedding_svm"]
+
+    per_engine_accuracies: dict[str, list[float]] = {key: [] for key in engine_keys}
+    for result in per_seed_results:
+        for key in engine_keys:
+            if result[key] is not None:
+                per_engine_accuracies[key].append(result[key]["accuracy_pct"])
+
+    summary = {}
+    for key, accs in per_engine_accuracies.items():
+        if not accs:
+            summary[key] = None
+            continue
+        mean_acc = sum(accs) / len(accs)
+        variance = sum((a - mean_acc) ** 2 for a in accs) / len(accs)
+        summary[key] = {
+            "mean_accuracy_pct": round(mean_acc, 1),
+            "stdev_accuracy_pct": round(variance ** 0.5, 1),
+            "n_seeds_evaluated": len(accs),
+            "accuracies_per_seed": accs,
+        }
+
+    tfidf_summary = summary.get("tfidf_svm")
+    alt_summaries = {k: v for k, v in summary.items() if k != "tfidf_svm" and v is not None}
+
+    if tfidf_summary is None:
+        verdict = "TIDAK BISA DIBANDINGKAN"
+        reason = "Baseline TF-IDF+SVM gagal dievaluasi di seed manapun."
+    elif not alt_summaries:
+        verdict = "TIDAK BISA DIBANDINGKAN"
+        reason = "Tidak ada engine alternatif yang berhasil dievaluasi di seed manapun."
+    else:
+        best_name = max(alt_summaries, key=lambda name: alt_summaries[name]["mean_accuracy_pct"])
+        best_mean = alt_summaries[best_name]["mean_accuracy_pct"]
+        best_label = ENGINE_DISPLAY_NAMES.get(best_name, best_name)
+        tfidf_mean = tfidf_summary["mean_accuracy_pct"]
+        wins = sum(
+            1
+            for result in per_seed_results
+            if result[best_name] is not None
+            and result["tfidf_svm"] is not None
+            and result[best_name]["accuracy_pct"] > result["tfidf_svm"]["accuracy_pct"]
+        )
+        n_seeds = len(seeds)
+        if best_mean > tfidf_mean and wins > n_seeds / 2:
+            verdict = f"{best_label.upper()} LEBIH BAIK (ROBUST)"
+            reason = (
+                f"{best_label} menang di {wins}/{n_seeds} split dengan rata-rata akurasi lebih tinggi "
+                f"({best_mean:.1f}% vs {tfidf_mean:.1f}%) -- konsisten di berbagai split, bukan kebetulan satu seed."
+            )
+        else:
+            verdict = "TF-IDF+SVM TETAP TERBAIK (ROBUST)"
+            reason = (
+                f"TF-IDF+SVM rata-rata {tfidf_mean:.1f}% vs alternatif terbaik ({best_label}) {best_mean:.1f}% "
+                f"-- {best_label} cuma menang di {wins}/{n_seeds} split, tidak cukup konsisten untuk mengganti produksi."
+            )
+
+    return {
+        "seeds": list(seeds),
+        "per_seed_results": per_seed_results,
+        "summary_by_engine": summary,
+        "verdict": verdict,
+        "verdict_reason": reason,
+    }
+
+
 @lru_cache(maxsize=1)
 def _load_financial_sentiment_model() -> Pipeline | None:
     """Loads the selected dataset and trains a lightweight local classifier.
@@ -127,6 +542,61 @@ def _load_financial_sentiment_model() -> Pipeline | None:
     still works offline.
     """
     return _train_sentiment_model_from_dataset(_default_external_dataset_path())
+
+
+@lru_cache(maxsize=1)
+def _load_sentiment_model_evaluation() -> dict | None:
+    return _evaluate_sentiment_model(_default_external_dataset_path())
+
+
+@lru_cache(maxsize=1)
+def _load_indobert_sentiment_model():
+    """Memuat model IndoBERT PRETRAINED (lihat catatan di INDOBERT_SENTIMENT_MODEL_ID
+    -- sudah di-fine-tune untuk sentimen oleh pihak lain, tidak dilatih ulang
+    di sini). Dimuat sekali & di-cache karena model transformer relatif berat
+    untuk dimuat berulang di tiap panggilan.
+
+    Mengembalikan None (bukan raise) kalau `torch`/`transformers` belum
+    terinstal, atau model gagal diunduh/dimuat (mis. offline tanpa cache HF
+    lokal) -- caller WAJIB fallback ke TF-IDF+SVM/lexicon, sama seperti pola
+    fallback _load_financial_sentiment_model yang sudah ada. Belum divalidasi
+    lewat held-out test apakah model ini genuinely lebih baik untuk teks
+    berita finansial -- lihat catatan di ROADMAP terkait sebelum menjadikan
+    ini engine utama.
+    """
+    if AutoTokenizer is None or AutoModelForSequenceClassification is None:
+        return None
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(INDOBERT_SENTIMENT_MODEL_ID)
+        model = AutoModelForSequenceClassification.from_pretrained(INDOBERT_SENTIMENT_MODEL_ID)
+        model.eval()
+    except Exception:
+        return None
+    return tokenizer, model
+
+
+def _predict_with_indobert(text: str) -> SentimentResult | None:
+    """Prediksi sentimen pakai IndoBERT pretrained. Mengembalikan None (bukan
+    hasil netral palsu) kalau model tidak tersedia atau teks kosong setelah
+    dibersihkan -- caller yang memutuskan fallback ke engine lain."""
+    loaded = _load_indobert_sentiment_model()
+    cleaned = clean_text(text)
+    if loaded is None or not cleaned:
+        return None
+    tokenizer, model = loaded
+    try:
+        inputs = tokenizer(cleaned, return_tensors="pt", truncation=True, max_length=256)
+        with torch.no_grad():
+            logits = model(**inputs).logits
+            probs = torch.nn.functional.softmax(logits, dim=-1)[0]
+        pred_idx = int(probs.argmax())
+        label = INDOBERT_LABEL_MAP.get(pred_idx, "NEUTRAL")
+        confidence = float(probs[pred_idx])
+    except Exception:
+        return None
+
+    sentiment_score = {"POSITIVE": 0.65, "NEUTRAL": 0.0, "NEGATIVE": -0.65}.get(label, 0.0)
+    return SentimentResult(label, round(confidence, 4), sentiment_score, 0, 0, "indobert_pretrained")
 
 
 def get_sentiment_engine_status() -> dict:
@@ -149,7 +619,8 @@ def get_sentiment_engine_status() -> dict:
     except Exception:
         usable_rows = None
 
-    return {
+    evaluation = _load_sentiment_model_evaluation()
+    status = {
         "engine": "ml_tfidf_linear_svm",
         "label": "TF-IDF + Linear SVM",
         "dataset_path": str(dataset_path),
@@ -157,7 +628,14 @@ def get_sentiment_engine_status() -> dict:
         "model_available": True,
         "training_rows": usable_rows,
         "description": "Memakai pipeline tugas_nlp_ai_trading: preprocessing teks, TF-IDF ngram 1-2, dan Linear SVM.",
+        "holdout_evaluation": evaluation,
     }
+    if evaluation is None:
+        status["holdout_evaluation_note"] = (
+            "Dataset terlalu kecil/tidak seimbang untuk validasi train/test yang andal "
+            "(minimal 30 baris berlabel dan tiap kelas >=2 baris)."
+        )
+    return status
 
 
 def _term_weight(tokens: list[str], index: int) -> float:
@@ -202,35 +680,6 @@ def _analyze_text_lexicon(text: str) -> SentimentResult:
     return SentimentResult(label, round(confidence, 4), round(normalized, 4), positive_hits, negative_hits)
 
 
-def _analyze_text_ml(text: str) -> SentimentResult | None:
-    model = _load_financial_sentiment_model()
-    cleaned = clean_text(text)
-    if model is None or not cleaned:
-        return None
-
-    label = str(model.predict([cleaned])[0]).upper()
-    sentiment_score = {
-        "POSITIVE": 0.65,
-        "NEUTRAL": 0.0,
-        "NEGATIVE": -0.65,
-    }.get(label, 0.0)
-
-    confidence = 0.75
-    try:
-        classifier = model.named_steps["classifier"]
-        classes = list(classifier.classes_)
-        distances = model.decision_function([cleaned])[0]
-        if hasattr(distances, "__iter__"):
-            distance = float(distances[classes.index(label)])
-        else:
-            distance = abs(float(distances))
-        confidence = min(0.99, 0.55 + min(abs(distance), 3.0) / 6.0)
-    except Exception:
-        pass
-
-    return SentimentResult(label, round(confidence, 4), sentiment_score, 0, 0, "ml_tfidf_linear_svm")
-
-
 def _predict_with_model(model: Pipeline, text: str, method: str) -> SentimentResult:
     cleaned = clean_text(text)
     label = str(model.predict([cleaned])[0]).upper()
@@ -252,6 +701,14 @@ def _predict_with_model(model: Pipeline, text: str, method: str) -> SentimentRes
     except Exception:
         pass
     return SentimentResult(label, round(confidence, 4), sentiment_score, 0, 0, method)
+
+
+def _analyze_text_ml(text: str) -> SentimentResult | None:
+    model = _load_financial_sentiment_model()
+    cleaned = clean_text(text)
+    if model is None or not cleaned:
+        return None
+    return _predict_with_model(model, text, "ml_tfidf_linear_svm")
 
 
 def analyze_text(text: str) -> SentimentResult:
@@ -353,7 +810,7 @@ def build_local_sentiment_dataset(
         dataset = dataset.sort_values(["_label_order", "ticker", "date", "clean_text"]).drop(columns=["_label_order"])
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    dataset.to_csv(output, index=False)
+    atomic_write_csv(dataset, output, index=False)
     _load_financial_sentiment_model.cache_clear()
     return dataset
 
@@ -393,7 +850,7 @@ def append_issue(path: str | Path, date: str, ticker: str, source: str, text: st
     }])
     existing = load_issues(path)
     updated = pd.concat([existing, new_row], ignore_index=True)
-    updated.to_csv(path, index=False)
+    atomic_write_csv(updated, path, index=False)
     return updated
 
 
@@ -410,7 +867,7 @@ def append_issues(path: str | Path, rows: Iterable[dict]) -> pd.DataFrame:
     existing = load_issues(path)
     updated = pd.concat([existing, new_rows], ignore_index=True)
     updated = updated.drop_duplicates(subset=["date", "ticker", "source", "text"], keep="last")
-    updated.to_csv(path, index=False)
+    atomic_write_csv(updated, path, index=False)
     return updated
 
 
@@ -530,3 +987,77 @@ def interpret_signal(sentiment_score: float) -> str:
     if sentiment_score <= -0.35:
         return "Mode kontrarian Indonesia: berita negatif membuka peluang capitulation/rebound bullish."
     return "Sentimen relatif netral atau campuran."
+
+
+DRIFT_Z_THRESHOLD = 2.0
+
+
+def compute_sentiment_drift(
+    dataset_path: str | Path, window_days: int = 7, date_column: str = "date"
+) -> dict | None:
+    """Mendeteksi pergeseran (drift) distribusi sentimen dibanding baseline historis.
+
+    Membandingkan rata-rata `sentiment_score` pada window TERBARU
+    (`window_days` hari terakhir dari data) terhadap baseline (seluruh data
+    SEBELUM window itu) lewat z-score. |z| > 2 dianggap pergeseran signifikan
+    -- ambang praktis/heuristik (rule-of-thumb deteksi outlier sederhana),
+    BUKAN uji signifikansi statistik formal. Drift terdeteksi bisa berarti
+    kondisi pasar/berita memang berubah, atau tanda dataset training sudah
+    usang (waktunya retrain) -- lihat ROADMAP_COGNITIVE_DASHBOARD.md Bagian B1.
+
+    Mengembalikan None kalau dataset tidak ada, tidak punya kolom
+    tanggal/sentiment_score, atau tidak cukup data untuk baseline vs window
+    terbaru (mis. semua data jatuh di satu window saja).
+    """
+    dataset_path = Path(dataset_path)
+    if not dataset_path.exists():
+        return None
+    try:
+        df = pd.read_csv(dataset_path)
+    except Exception:
+        return None
+    if date_column not in df.columns or "sentiment_score" not in df.columns:
+        return None
+
+    data = df[[date_column, "sentiment_score"]].dropna().copy()
+    data[date_column] = pd.to_datetime(data[date_column], errors="coerce")
+    data["sentiment_score"] = pd.to_numeric(data["sentiment_score"], errors="coerce")
+    data = data.dropna(subset=[date_column, "sentiment_score"])
+    if data.empty:
+        return None
+
+    daily = data.groupby(data[date_column].dt.normalize())["sentiment_score"].mean().sort_index()
+    if len(daily) < 2:
+        return None
+
+    latest_date = daily.index.max()
+    cutoff = latest_date - pd.Timedelta(days=window_days)
+    recent = daily[daily.index > cutoff]
+    baseline = daily[daily.index <= cutoff]
+    if recent.empty or baseline.empty:
+        return None
+
+    baseline_mean = float(baseline.mean())
+    baseline_std = float(baseline.std()) if len(baseline) > 1 else 0.0
+    recent_mean = float(recent.mean())
+    # Floor minimum pada std -- kalau baseline nyaris konstan (std~0), z-score
+    # murni bisa meledak/tidak terdefinisi. Pakai batas bawah praktis (5% dari
+    # rentang skor sentimen -1..1) supaya pergeseran besar TETAP terdeteksi
+    # sebagai drift, bukan malah dianggap "tidak ada drift" karena baseline
+    # kebetulan datar.
+    effective_std = max(baseline_std, 0.05)
+    drift_z_score = (recent_mean - baseline_mean) / effective_std
+
+    return {
+        "baseline_mean": round(baseline_mean, 4),
+        "baseline_std": round(baseline_std, 4),
+        "baseline_days": int(len(baseline)),
+        "recent_mean": round(recent_mean, 4),
+        "recent_days": int(len(recent)),
+        "drift_z_score": round(drift_z_score, 2),
+        "is_drifting": bool(abs(drift_z_score) > DRIFT_Z_THRESHOLD),
+        "daily_series": [
+            {"date": str(idx.date()), "avg_sentiment_score": round(float(value), 4)}
+            for idx, value in daily.items()
+        ],
+    }

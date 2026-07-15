@@ -31,12 +31,30 @@ def main() -> int:
     args = parser.parse_args()
 
     tickers = parse_tickers(args.tickers)
-    summary = run_auto_updater(
-        config_path=args.config,
-        data_dir=args.data_dir,
-        tickers=tickers,
-        sleep_seconds=float(args.sleep),
-    )
+    try:
+        summary = run_auto_updater(
+            config_path=args.config,
+            data_dir=args.data_dir,
+            tickers=tickers,
+            sleep_seconds=float(args.sleep),
+        )
+    except Exception as exc:
+        output_dir = Path(args.summary_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / f"price_update_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        output_path.write_text(
+            json.dumps({"status": "FAILED", "reason": str(exc)}, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        print(f"Update data harga gagal tak terduga: {exc}")
+        print(f"Ringkasan: {output_path}")
+        return 1
+    # Perbarui juga data indeks IHSG (^JKSE), terpisah dari daftar saham --
+    # dipakai fitur korelasi/beta-terhadap-pasar di seluruh sistem.
+    try:
+        run_auto_updater(data_dir=args.data_dir, tickers=["^JKSE"], sleep_seconds=0.0)
+    except Exception as exc:
+        print(f"Peringatan: gagal memperbarui data indeks ^JKSE: {exc}")
 
     output_dir = Path(args.summary_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

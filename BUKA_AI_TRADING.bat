@@ -3,8 +3,14 @@ setlocal
 title Buka AI Trading
 cd /d "%~dp0"
 
-if not exist ".venv\Scripts\streamlit.exe" (
-    echo Streamlit tidak ditemukan di virtual environment project.
+if exist ".env" (
+    for /f "usebackq eol=# tokens=1,* delims==" %%A in (".env") do (
+        if not "%%A"=="" set "%%A=%%B"
+    )
+)
+
+if not exist ".venv\Scripts\python.exe" (
+    echo Python virtual environment project tidak ditemukan.
     echo.
     echo Coba jalankan:
     echo .venv\Scripts\python.exe -m pip install -r requirements.txt
@@ -27,7 +33,7 @@ echo.
 echo Jendela ini adalah server dashboard. Tutup jendela ini jika ingin menghentikan dashboard.
 echo.
 
-".venv\Scripts\streamlit.exe" run streamlit_app.py --server.port 8501 --server.address localhost --browser.gatherUsageStats false
+".venv\Scripts\python.exe" -m streamlit run streamlit_app.py --server.port 8501 --server.address localhost --browser.gatherUsageStats false
 
 pause
 endlocal

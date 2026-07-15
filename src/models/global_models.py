@@ -122,25 +122,38 @@ class GlobalDirectionModel:
     ticker_categories_: list[str] = field(default_factory=list)
 
     def _build_model(self):
+        # Sama seperti DirectionClassifier (lihat komentar di
+        # src/models/direction_classifier.py) -- hyperparameter LightGBM di
+        # bawah divalidasi lewat walk-forward vs baseline naif, mengurangi
+        # kerugian rata-rata dari -5.8pp jadi -2.3pp (belum melampaui
+        # baseline). Model global (dilatih gabungan semua ticker) sama-sama
+        # rentan overfitting pada sinyal 1-hari yang lemah, jadi regularisasi
+        # yang sama diterapkan di sini.
         model_type = str(self.model_type).lower().strip()
         if model_type == "lightgbm" and LGBMClassifier is not None:
             return LGBMClassifier(
-                n_estimators=260,
-                learning_rate=0.04,
-                num_leaves=31,
-                subsample=0.85,
-                colsample_bytree=0.85,
+                n_estimators=50,
+                learning_rate=0.03,
+                num_leaves=7,
+                min_child_samples=30,
+                subsample=0.7,
+                colsample_bytree=0.7,
+                reg_alpha=1.0,
+                reg_lambda=1.0,
                 random_state=42,
                 verbosity=-1,
             )
         if xgb is None:
             raise ImportError("xgboost belum terinstal.")
         return xgb.XGBClassifier(
-            n_estimators=260,
-            learning_rate=0.04,
-            max_depth=4,
-            subsample=0.85,
-            colsample_bytree=0.85,
+            n_estimators=50,
+            learning_rate=0.03,
+            max_depth=3,
+            min_child_weight=10,
+            subsample=0.7,
+            colsample_bytree=0.7,
+            reg_alpha=1.0,
+            reg_lambda=1.0,
             objective="binary:logistic",
             eval_metric="logloss",
             random_state=42,

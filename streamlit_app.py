@@ -1,5 +1,6 @@
 ﻿import streamlit as st
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 import os
 import logging
@@ -13,34 +14,18 @@ import re
 from datetime import datetime, timedelta
 from pandas.errors import EmptyDataError
 
-from data_loader import DataLoader
 import run_analysis as analysis_runner
 
 analysis_runner = importlib.reload(analysis_runner)
 run_backfill_analysis = analysis_runner.run_backfill_analysis
 run_full_analysis = analysis_runner.run_full_analysis
-from src.data_pipeline.feature_engineer import FeatureEngineer
 from src.data_pipeline.auto_updater import (
     _normalize_existing_data,
     get_local_data_status,
     run_auto_updater,
     update_from_manual_dataframe,
 )
-from src.models.isolation_forest import IsolationForestModel
-from src.models.price_projector import PriceProjector
-from src.models.conformal_predictor import ConformalPredictor
-from src.models.regime_classifier import RegimeClassifier
-from src.models.ensemble import soft_ensemble_predict, COPODModel
-from src.models.garch_model import GARCHModel
-from src.models.backtest_engine import BacktestEngine
-from src.models.lstm_projector import LSTMPriceProjector
-from src.models.direction_classifier import DirectionClassifier
-from src.models.baseline_strategies import evaluate_baseline_strategies
-from src.models.walk_forward import walk_forward_direction_validation, walk_forward_return_validation
-from src.trading.reliability_ensemble import get_reliability_weights, weighted_direction_probability
-from src.trading.decision_support import build_decision_support, build_trade_gate, calculate_ai_confidence_score, calculate_position_sizing
-from src.trading.signal_generator import generate_signal
-from src.utils.model_guardrails import assert_no_training_leakage
+from src.trading.decision_support import calculate_position_sizing
 from src.utils.accuracy_tracker import (
     log_prediction,
     evaluate_pending_predictions,
@@ -56,24 +41,14 @@ from src.utils.csv_audit import audit_prediction_csv, clean_prediction_csv
 from src.utils.mongo_store import check_mongo_status
 from src.utils.training_policy import evaluate_training_policy, evaluate_training_policy_by_model
 from src.utils.model_store import list_ticker_models, model_store_status
+from src.utils.user_feedback import load_user_feedback, log_user_feedback
+from src.trading.market_regime import compute_market_breadth, load_regime_history, log_regime_snapshot, summarize_regime_streaks
+from src.trading.personalization import apply_personalization, load_user_profile, mute_ticker, unmute_ticker
 from src.models.global_models import predict_with_global_models
 from src.nlp.news_fetcher import fetch_google_news_sentiment_items
 from src.nlp.sentiment_analyzer import analyze_dataframe, analyze_text, append_issue, append_issues, build_local_sentiment_dataset, build_trading_sentiment_summary, get_local_sentiment_dataset_path, get_sentiment_engine_status, interpret_signal, load_issues, summarize_by_ticker
+from src.nlp.gemini_keyword_search import check_gemini_status, suggest_sentiment_keywords
 
-try:
-    from lightgbm import LGBMClassifier, LGBMRegressor
-except ImportError:
-    LGBMClassifier = None
-    LGBMRegressor = None
-
-try:
-    import xgboost as xgb
-except ImportError:
-    xgb = None
-
-# Inisialisasi komponen pipeline untuk mode offline
-loader = DataLoader(min_rows=100)
-engineer = FeatureEngineer(warmup_period=60)
 logger = logging.getLogger(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -715,6 +690,20 @@ require_dashboard_password()
 apply_dashboard_theme()
 render_app_header()
 
+with st.expander("👋 Pertama Kali di Sini? Mulai dari Sini", expanded=False):
+    st.markdown(
+        "1. **Pilih mode tampilan** di sidebar (Pemula/Trader/Audit) -- Pemula menyembunyikan kolom "
+        "teknis dan cocok kalau baru pertama kali pakai dashboard ini.\n"
+        "2. **Buka tab 'Ringkasan Harian'** -- tabel 'Rencana Trading Besok' menjawab pertanyaan utama: "
+        "\"saham apa yang layak dipantau/dibeli hari ini, dan kenapa?\"\n"
+        "3. **Lihat kolom Verifikasi** di tabel itu -- ✅ berarti sinyalnya sudah lolos dua jenis "
+        "pengujian sekaligus (bukan cuma tebakan mentah model).\n"
+        "4. Kalau ada istilah yang tidak dipahami, buka **'📖 Kamus Istilah'** di sidebar -- semua "
+        "istilah teknis di dashboard ini dijelaskan di situ.\n"
+        "5. Pengaturan lain di sidebar (batas reliability, confidence, dst.) **tidak wajib diubah** -- "
+        "nilai defaultnya sudah masuk akal untuk mulai."
+    )
+
 
 def load_config_tickers(config_path: str = "config/stocks.yaml"):
     try:
@@ -867,11 +856,81 @@ if use_all_tickers:
 elif ticker:
     st.sidebar.caption(f"Ticker aktif: {ticker}")
 
+st.sidebar.header("Pengaturan Sensitivitas & Tampilan")
+display_mode = st.sidebar.radio(
+    "Mode tampilan",
+    ["Pemula", "Trader", "Audit"],
+    horizontal=True,
+    help=(
+        "Berlaku di semua tab. Pemula: sembunyikan kolom teknis, fokus ke keputusan. "
+        "Trader: tambah angka potensi/risk. Audit: tampilkan semua detail teknis + status job."
+    ),
+)
+with st.sidebar.expander("⚙️ Pengaturan Lanjutan (opsional -- nilai default sudah masuk akal)"):
+    global_min_reliability = st.slider(
+        "Batas reliability model minimum (%)", 0.0, 100.0, 55.0, 5.0,
+        help="Dipakai di Ringkasan Harian untuk menyaring sinyal BUY/WATCH -- model dengan reliability_score di bawah ini dianggap belum layak jadi acuan.",
+    )
+    global_min_confidence = st.slider(
+        "Batas confidence entry minimum (%)", 0.0, 100.0, 60.0, 5.0,
+        help="Dipakai di Ringkasan Harian -- prediksi arah H+1 dengan confidence di bawah ini dianggap netral, bukan sinyal kuat.",
+    )
+    global_min_evaluations_trading = st.number_input(
+        "Minimal track record untuk sinyal BUY/WATCH", min_value=3, max_value=200, value=20, step=1,
+        help="Dipakai di Ringkasan Harian -- makin tinggi, makin ketat sebelum sinyal dianggap layak dieksekusi.",
+    )
+    global_min_evaluations_audit = st.number_input(
+        "Minimal track record untuk tabel audit", min_value=1, max_value=50, value=3, step=1,
+        help=(
+            "Dipakai di tab Akurasi Model (bukan Ringkasan Harian) -- sengaja lebih rendah supaya model yang "
+            "datanya belum banyak masih terlihat di tabel audit/telaah, bukan langsung hilang."
+        ),
+    )
+
+with st.sidebar.expander("📖 Kamus Istilah"):
+    st.markdown(
+        "- **Walk-forward**: cara menguji model dengan train/test bergulir mengikuti waktu (bukan acak), "
+        "supaya tidak ada kebocoran informasi masa depan ke masa lalu.\n"
+        "- **Baseline naif**: pembanding sederhana (tebak arah mayoritas / tebak return nol). Model baru "
+        "dianggap ada **edge** kalau mengalahkan ini, bukan sekadar akurasi tinggi.\n"
+        "- **Edge vs baseline**: selisih akurasi model terhadap baseline naif pada periode uji yang sama. "
+        "Positif = model benar-benar lebih baik dari tebakan naif.\n"
+        "- **SHAP**: metode yang merinci fitur mana yang mendorong satu prediksi spesifik ke arah NAIK/TURUN, "
+        "dan seberapa besar pengaruhnya.\n"
+        "- **Reliability score**: skor 0-100 dari akurasi + error margin + jumlah sampel evaluasi historis.\n"
+        "- **Trading score**: skor 0-100 yang juga memperhitungkan hasil simulasi return & profit factor, "
+        "bukan cuma akurasi arah.\n"
+        "- **Profit factor**: total untung dibagi total rugi dari sinyal historis. Di atas 1 berarti untung "
+        "lebih besar dari rugi.\n"
+        "- **Calibration gap**: selisih antara confidence yang diklaim model dan akurasi sungguhan -- "
+        "makin dekat ke 0 makin bisa dipercaya angka confidence-nya.\n"
+        "- **Trust audit**: status LAYAK DIPERCAYA/PERLU DATA LAGI/JANGAN DIIKUTI berdasarkan track record "
+        "prediksi live yang sudah dievaluasi terhadap harga aktual.\n"
+        "- **Genuine edge (walk-forward)**: sama seperti edge vs baseline, tapi dari backtest walk-forward "
+        "penuh (bukan track record live) -- lihat tab Walk-Forward Genuine Edge.\n"
+        "- **F1 per kelas**: satu angka yang menggabungkan presisi dan recall untuk SATU kelas (mis. NEGATIVE) "
+        "saja. Berguna karena akurasi keseluruhan bisa menyembunyikan kelas yang datanya sedikit/model-nya "
+        "lemah di situ -- F1 rendah di satu kelas berarti model itu masih sering salah khusus untuk kelas itu.\n"
+        "- **Skor Personal**: angka -1 s.d. +1 dari riwayat umpan balik Anda sendiri (Ikuti/Berguna menambah, "
+        "Lewati/Tidak Berguna mengurangi) -- HANYA memengaruhi urutan tampilan, TIDAK PERNAH mengubah "
+        "Sinyal/Confidence/prediksi model.\n"
+        "- **Dimute**: ticker yang Anda tandai untuk disembunyikan dari tabel Rencana Trading lewat tombol "
+        "'Mute Ticker Ini' -- tetap dianalisis di belakang layar, cuma tidak ditampilkan di tabel utama.\n"
+        "- **Regime pasar & streak**: kondisi pasar hari ini (REBOUND/BEARISH/MIXED) berdasarkan persentase "
+        "saham yang naik. 'Streak' berarti sudah berapa hari berturut-turut regime itu bertahan -- dicatat "
+        "otomatis tiap hari supaya dashboard punya 'memori' konteks pasar, bukan cuma snapshot hari ini."
+    )
+
+if st.sidebar.button("🔄 Refresh Data Sekarang", help="Bersihkan cache dan muat ulang semua data terbaru dari file lokal."):
+    st.cache_data.clear()
+    st.rerun()
+
 # --- TABS UTAMA: alur harian dulu, kontrol lanjutan setelahnya ---
-tab_daily, tab_update, tab_ranking, tab_accuracy, tab_sentiment = st.tabs([
+tab_beranda, tab_daily, tab_update, tab_ranking, tab_accuracy, tab_sentiment = st.tabs([
+    "🏠 Beranda",
     "Ringkasan Harian",
     "Workflow Harian",
-    "Ranking Prediksi",
+    "Ranking Mentah (Riset)",
     "Akurasi Model",
     "Sentimen Pasar",
 ])
@@ -1310,83 +1369,6 @@ def build_analysis_completion_status(selected_tickers, required_models=None):
     return pd.DataFrame(rows)
 
 
-def build_final_prediction_workflow_status(selected_tickers, required_models=None):
-    required_models = required_models or ["XGBoost"]
-    normalized_tickers = [normalize_ticker_code(t) for t in selected_tickers if normalize_ticker_code(t)]
-    if not normalized_tickers:
-        return pd.DataFrame()
-
-    completion_df = build_analysis_completion_status(normalized_tickers, required_models=required_models)
-    pred_df = load_prediction_log()
-    if not pred_df.empty:
-        pred_df["target_dt"] = pd.to_datetime(pred_df.get("target_date"), errors="coerce")
-
-    rows = []
-    for _, row in completion_df.iterrows():
-        ticker_code = normalize_ticker_code(row.get("ticker"))
-        last_date = row.get("last_date")
-        last_dt = pd.to_datetime(last_date, errors="coerce")
-        ticker_preds = pred_df[pred_df["ticker"] == ticker_code].copy() if not pred_df.empty else pd.DataFrame()
-        final_preds = pd.DataFrame()
-        due_pending = pd.DataFrame()
-
-        if not ticker_preds.empty:
-            final_preds = ticker_preds[
-                (ticker_preds["prediction_run_type"] == "FINAL")
-                & (ticker_preds["is_active"])
-            ].copy()
-            if pd.notna(last_dt):
-                due_pending = final_preds[
-                    (final_preds["status"] == "PENDING")
-                    & (final_preds["target_dt"].notna())
-                    & (final_preds["target_dt"] <= last_dt)
-                ].copy()
-
-        today_final = pd.DataFrame()
-        if not final_preds.empty and last_date:
-            today_final = final_preds[final_preds["current_date"] == str(last_date)].copy()
-
-        h1_ready = bool(
-            not today_final.empty
-            and (
-                (today_final["prediction_purpose"] == "NEXT_DAY_DIRECTION")
-                & (today_final["horizon_days"].fillna(1).astype(int) == 1)
-            ).any()
-        )
-        h3_ready = bool(
-            not today_final.empty
-            and (
-                (today_final["prediction_purpose"] == "THREE_DAY_FORECAST")
-                & (today_final["horizon_days"].fillna(3).astype(int) == 3)
-            ).any()
-        )
-
-        if row.get("status_data") != "OK":
-            readiness = "DATA BELUM SIAP"
-            action = "Update/import data lokal dulu"
-        elif h1_ready and h3_ready:
-            readiness = "FINAL SUDAH ADA"
-            action = "Tidak perlu prediksi ulang"
-        else:
-            readiness = "SIAP PREDIKSI FINAL"
-            action = "Jalankan prediksi FINAL dengan skip"
-
-        rows.append({
-            "Saham": ticker_code,
-            "Tanggal Data": last_date or "-",
-            "Status Data": row.get("status_data", "-"),
-            "Status Analisis H+3": row.get("status_analisis", "-"),
-            "FINAL H+1 Ada": "YA" if h1_ready else "BELUM",
-            "FINAL H+3 Ada": "YA" if h3_ready else "BELUM",
-            "Pending FINAL Jatuh Tempo": int(len(due_pending)),
-            "Prediksi FINAL Aktif": int(len(final_preds)),
-            "Kesiapan": readiness,
-            "Aksi": action,
-        })
-
-    return pd.DataFrame(rows)
-
-
 def _decision_label(action):
     label_map = {
         "BUY": "🟢 BUY",
@@ -1394,8 +1376,64 @@ def _decision_label(action):
         "AVOID": "🔴 AVOID",
         "DATA BELUM SIAP": "⚪ DATA BELUM SIAP",
         "MODEL BELUM TERPERCAYA": "🟠 MODEL BELUM TERPERCAYA",
+        "TIDAK ADA EDGE (WALK-FORWARD)": "⚫ TIDAK ADA EDGE (WALK-FORWARD)",
     }
     return label_map.get(action, action)
+
+
+def compute_unified_trust_badge(status_trust, has_genuine_edge):
+    """Menggabungkan dua sinyal kepercayaan yang sumbernya beda supaya pengguna
+    tidak perlu membandingkan sendiri antar tab:
+    - `status_trust`: track record LIVE (prediksi asli yang sudah dievaluasi
+      terhadap harga aktual) -- dari tab Model Trust Audit.
+    - `has_genuine_edge`: hasil BACKTEST walk-forward penuh (train/test
+      bergulir) -- dari tab Walk-Forward Genuine Edge / screening.
+
+    Keduanya bisa tidak sepakat (mis. live terlihat bagus tapi belum pernah
+    lolos backtest, atau sebaliknya) -- itu justru informasi penting, bukan
+    kontradiksi yang harus disembunyikan.
+    """
+    live_ok = status_trust == "LAYAK DIPERCAYA"
+    if live_ok and has_genuine_edge is True:
+        return "✅ Terverifikasi Ganda", "Live OK + lolos backtest walk-forward."
+    if live_ok and has_genuine_edge is False:
+        return "⚠️ Live OK, Backtest Belum Lolos", "Track record live bagus, tapi backtest walk-forward belum menunjukkan edge nyata."
+    if live_ok and has_genuine_edge is None:
+        return "⚠️ Live OK, Backtest Belum Diuji", "Track record live bagus, tapi belum discreening lewat walk-forward."
+    if not live_ok and has_genuine_edge is True:
+        return "⚠️ Backtest OK, Live Kurang", "Lolos backtest walk-forward, tapi track record live belum cukup/trusted."
+    return "❌ Belum Lolos Verifikasi", "Belum lolos live trust audit maupun backtest walk-forward."
+
+
+def render_interactive_accuracy_trend(df, x_col, y_col, color_col, title=""):
+    """Chart interaktif (hover per titik, bisa zoom/pan) pengganti st.line_chart
+    statis -- supaya pengguna bisa menelusuri sendiri tanggal/model mana yang
+    melemah tanpa harus buka tabel mentah."""
+    if df.empty:
+        return
+    fig = px.line(df, x=x_col, y=y_col, color=color_col, markers=True, title=title)
+    fig.update_layout(hovermode="x unified", legend_title_text=color_col, margin=dict(l=10, r=10, t=40, b=10))
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_interactive_contribution_bar(feat_df, title=""):
+    """Chart kontribusi SHAP dengan warna hijau/merah sesuai arah dorongan
+    prediksi, plus hover nilai fitur asli -- pengganti st.bar_chart statis
+    yang cuma menunjukkan tinggi batang tanpa konteks."""
+    if feat_df.empty:
+        return
+    chart_df = feat_df.sort_values("contribution")
+    colors = ["#2ecc71" if v >= 0 else "#e74c3c" for v in chart_df["contribution"]]
+    fig = go.Figure(go.Bar(
+        x=chart_df["contribution"],
+        y=chart_df["feature"],
+        orientation="h",
+        marker_color=colors,
+        customdata=chart_df["value"],
+        hovertemplate="%{y}: nilai=%{customdata:.4g}, kontribusi=%{x:+.4f}<extra></extra>",
+    ))
+    fig.update_layout(title=title, xaxis_title="Kontribusi SHAP", yaxis_title="", margin=dict(l=10, r=10, t=40, b=10))
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def build_daily_decision_board(
@@ -1405,53 +1443,15 @@ def build_daily_decision_board(
     min_evaluations=20,
     portfolio_capital=100_000_000,
     risk_per_trade_pct=1.0,
+    genuine_edge_lookup=None,
+    edge_lookup_for_badge=None,
+    volatility_lookup=None,
+    sentiment_bias_lookup=None,
+    xai_reason_lookup=None,
 ):
-    def latest_market_breadth(tickers):
-        rows = []
-        for ticker_code in tickers:
-            raw_path = project_path("data", "raw", f"{ticker_code}_raw.csv")
-            if not os.path.exists(raw_path):
-                continue
-            try:
-                price_df = pd.read_csv(raw_path)
-            except Exception:
-                continue
-            close_col = "close" if "close" in price_df.columns else "Close" if "Close" in price_df.columns else None
-            if close_col is None or len(price_df) < 2:
-                continue
-            closes = pd.to_numeric(price_df[close_col], errors="coerce").dropna()
-            if len(closes) < 2:
-                continue
-            prev_close = float(closes.iloc[-2])
-            last_close = float(closes.iloc[-1])
-            if prev_close <= 0:
-                continue
-            rows.append((last_close / prev_close - 1.0) * 100.0)
-        if not rows:
-            return {
-                "breadth_up_pct": 0.0,
-                "avg_latest_return_pct": 0.0,
-                "market_regime": "UNKNOWN",
-                "sample_size": 0,
-            }
-        returns = pd.Series(rows)
-        breadth_up_pct = float((returns > 0).mean() * 100.0)
-        avg_latest_return_pct = float(returns.mean())
-        if breadth_up_pct >= 60.0 and avg_latest_return_pct > 0:
-            market_regime = "REBOUND"
-        elif breadth_up_pct <= 40.0 and avg_latest_return_pct < 0:
-            market_regime = "BEARISH"
-        else:
-            market_regime = "MIXED"
-        return {
-            "breadth_up_pct": round(breadth_up_pct, 2),
-            "avg_latest_return_pct": round(avg_latest_return_pct, 2),
-            "market_regime": market_regime,
-            "sample_size": int(len(returns)),
-        }
-
     normalized_tickers = [normalize_ticker_code(t) for t in selected_tickers if normalize_ticker_code(t)]
-    market_breadth = latest_market_breadth(normalized_tickers)
+    market_breadth = compute_market_breadth(normalized_tickers, raw_dir=project_path("data", "raw"))
+    log_regime_snapshot(market_breadth)
     market_rebound = market_breadth["market_regime"] == "REBOUND"
     completion_df = build_analysis_completion_status(normalized_tickers, required_models=["XGBoost"])
     pred_df = load_prediction_log()
@@ -1532,9 +1532,11 @@ def build_daily_decision_board(
 
         current_price = 0.0
         if not h3_pred.empty and "current_price" in h3_pred.columns:
-            current_price = float(pd.to_numeric(h3_pred["current_price"].iloc[0], errors="coerce") or 0.0)
+            _cp = pd.to_numeric(h3_pred["current_price"].iloc[0], errors="coerce")
+            current_price = float(_cp) if pd.notna(_cp) else 0.0
         elif not h1_pred.empty and "current_price" in h1_pred.columns:
-            current_price = float(pd.to_numeric(h1_pred["current_price"].iloc[0], errors="coerce") or 0.0)
+            _cp = pd.to_numeric(h1_pred["current_price"].iloc[0], errors="coerce")
+            current_price = float(_cp) if pd.notna(_cp) else 0.0
 
         projected_return = float(h3_pred["predicted_return_pct"].iloc[0]) if not h3_pred.empty and pd.notna(h3_pred["predicted_return_pct"].iloc[0]) else 0.0
         raw_confidence = float(h1_pred["confidence_pct"].iloc[0]) if not h1_pred.empty and pd.notna(h1_pred["confidence_pct"].iloc[0]) else 0.0
@@ -1545,11 +1547,30 @@ def build_daily_decision_board(
         direction_accuracy = float(accuracy_lookup.get((ticker_code, "XGBoost"), 0.0) or 0.0)
         trust_status = str(trust_lookup.get(ticker_code, "PERLU DATA LAGI"))
         trust_reason = str(trust_reason_lookup.get(ticker_code, "Track record H+1 belum cukup untuk menjadi acuan utama."))
+        edge_for_badge = edge_lookup_for_badge.get(ticker_code) if edge_lookup_for_badge is not None else None
+        unified_badge, unified_badge_reason = compute_unified_trust_badge(trust_status, edge_for_badge)
+        volatility_pct = volatility_lookup.get(ticker_code) if volatility_lookup is not None else None
+        sentiment_bias = sentiment_bias_lookup.get(ticker_code, "NEUTRAL") if sentiment_bias_lookup is not None else "NEUTRAL"
+        xai_reason = xai_reason_lookup.get(ticker_code, "-") if xai_reason_lookup is not None else "-"
+
+        # SL sekarang mengikuti volatilitas GARCH harian ticker ini (bukan
+        # angka tetap -3%) -- disesuaikan sedikit oleh bias sentimen (stop
+        # lebih ketat kalau sentimen BEARISH bertentangan dengan sinyal).
+        # Kelipatan 1.5x dan batas 1.5%-8% adalah heuristik praktis (belum
+        # dioptimasi empiris terhadap data historis) supaya saham fluktuatif
+        # dapat ruang gerak wajar dan saham tenang tidak kena stop longgar.
+        if volatility_pct is not None and volatility_pct > 0:
+            sentiment_multiplier = 0.85 if sentiment_bias == "BEARISH" else (1.1 if sentiment_bias == "BULLISH" else 1.0)
+            sl_distance_pct = min(max(volatility_pct * 1.5 * sentiment_multiplier, 1.5), 8.0)
+            sl_basis = f"volatilitas GARCH {volatility_pct:.2f}%/hari, sentimen {sentiment_bias.lower()}"
+        else:
+            sl_distance_pct = 3.0
+            sl_basis = "default 3% (data volatilitas belum tersedia -- jalankan analisis dulu)"
 
         target_h3 = current_price * (1 + projected_return / 100.0) if current_price > 0 else 0.0
         entry_low = current_price * 0.995 if current_price > 0 else 0.0
         entry_high = current_price * 1.005 if current_price > 0 else 0.0
-        stop_loss = current_price * 0.97 if current_price > 0 else 0.0
+        stop_loss = current_price * (1 - sl_distance_pct / 100.0) if current_price > 0 else 0.0
         risk_reward = ((target_h3 - current_price) / max(current_price - stop_loss, 1e-9)) if current_price > 0 else 0.0
         sizing = calculate_position_sizing(
             capital=float(portfolio_capital),
@@ -1559,7 +1580,14 @@ def build_daily_decision_board(
         )
 
         if action == "WATCH":
-            if trust_status != "LAYAK DIPERCAYA":
+            if genuine_edge_lookup is not None and not genuine_edge_lookup.get(ticker_code, False):
+                action = "TIDAK ADA EDGE (WALK-FORWARD)"
+                reason_parts.append(
+                    "Screening walk-forward penuh (backtest train/test bergulir) menunjukkan model TIDAK "
+                    "mengalahkan baseline tebak-mayoritas untuk ticker ini di horizon manapun -- "
+                    "lihat tab 'Walk-Forward Genuine Edge' untuk detail."
+                )
+            elif trust_status != "LAYAK DIPERCAYA":
                 action = "MODEL BELUM TERPERCAYA"
                 reason_parts.append(f"Trust audit: {trust_status.lower()}.")
             elif reliability < min_reliability or total_evaluations < int(min_evaluations):
@@ -1587,7 +1615,7 @@ def build_daily_decision_board(
         risk_label = "Rendah"
         if abs(projected_return) < 1.0 or confidence < min_confidence:
             risk_label = "Sedang"
-        if reliability < min_reliability or action in {"AVOID", "DATA BELUM SIAP"}:
+        if reliability < min_reliability or action in {"AVOID", "DATA BELUM SIAP", "TIDAK ADA EDGE (WALK-FORWARD)"}:
             risk_label = "Tinggi"
 
         rows.append({
@@ -1609,12 +1637,14 @@ def build_daily_decision_board(
             "Regime Pasar": market_breadth["market_regime"],
             "Breadth Naik": market_breadth["breadth_up_pct"],
             "Trust Model": trust_status,
+            "Verifikasi": unified_badge,
             "Risiko": risk_label,
             "Status Data": status_data,
             "Status Analisis": status_analisis,
             "Tanggal Data": last_date,
             "Alasan Utama": " ".join(reason_parts),
             "Catatan Trust": trust_reason,
+            "Catatan Verifikasi": unified_badge_reason,
         })
 
     board_df = pd.DataFrame(rows)
@@ -1626,6 +1656,7 @@ def build_daily_decision_board(
         "🟠 MODEL BELUM TERPERCAYA": 2,
         "⚪ DATA BELUM SIAP": 3,
         "🔴 AVOID": 4,
+        "⚫ TIDAK ADA EDGE (WALK-FORWARD)": 5,
     }
     board_df["_sort"] = board_df["Sinyal"].map(action_order).fillna(9)
     return board_df.sort_values(["_sort", "Potensi H+3", "Risk/Reward", "Confidence"], ascending=[True, False, False, False]).drop(columns="_sort")
@@ -2110,6 +2141,34 @@ def read_analysis_job_status(job_id):
     return status
 
 
+def get_latest_daily_workflow_run():
+    """Baca ringkasan run TERAKHIR dari scripts/daily_global_workflow_cli.py
+    (dijalankan Task Scheduler tanpa pengawasan tiap sore hari bursa). Sebelum
+    ini, dashboard tidak punya visibilitas apa pun ke run otomatis itu --
+    alert 'job background bermasalah' di tab Beranda cuma memantau job yang
+    dipicu manual dari tombol UI (data/jobs/), bukan otomasi Task Scheduler
+    (data/daily_workflows/). Dipakai bersama perbaikan try/except di
+    daily_global_workflow_cli.py yang sekarang SELALU menulis status FAILED +
+    alasan kalau ada step yang gagal, alih-alih crash senyap tanpa jejak."""
+    workflow_dir = os.path.join(DATA_DIR, "daily_workflows")
+    if not os.path.exists(workflow_dir):
+        return None
+    files = [f for f in os.listdir(workflow_dir) if f.startswith("daily_global_workflow_") and f.endswith(".json")]
+    if not files:
+        return None
+    latest_path = max(
+        (os.path.join(workflow_dir, f) for f in files),
+        key=lambda p: os.path.getmtime(p),
+    )
+    try:
+        with open(latest_path, "r", encoding="utf-8") as f:
+            run = json.load(f)
+    except Exception as e:
+        return {"status": "UNKNOWN", "finished_at": None, "message": f"Gagal membaca ringkasan workflow harian: {e}"}
+    run["_mtime"] = os.path.getmtime(latest_path)
+    return run
+
+
 def list_analysis_jobs(limit=10):
     if not os.path.exists(JOB_DIR):
         return []
@@ -2130,6 +2189,63 @@ def list_analysis_jobs(limit=10):
 
     jobs.sort(key=lambda row: os.path.getmtime(row["path"]) if os.path.exists(row["path"]) else 0, reverse=True)
     return jobs[:limit]
+
+
+@st.cache_data(show_spinner=False, ttl=60)
+def load_latest_walk_forward_edge_status():
+    """Membaca hasil walk-forward-vs-baseline (run_analysis.py) dari semua job
+    JSON di data/jobs -- angka ini SEBELUMNYA cuma dicetak ke console dan tidak
+    pernah tersimpan/tampil di dashboard, padahal ini validasi paling ketat
+    (backtest walk-forward) yang ada di sistem. Untuk tiap ticker, ambil entry
+    "analyzed" terbaru saja (job terbaru menang kalau ticker sama muncul di
+    beberapa job)."""
+    if not os.path.exists(JOB_DIR):
+        return pd.DataFrame()
+
+    latest_by_ticker = {}
+    for filename in os.listdir(JOB_DIR):
+        if not filename.startswith("analysis_") or not filename.endswith(".json"):
+            continue
+        path = os.path.join(JOB_DIR, filename)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                status = json.load(f)
+        except Exception:
+            continue
+        updated_at = str(status.get("updated_at", ""))
+        for entry in (status.get("summary") or {}).get("analyzed", []):
+            ticker_code = entry.get("ticker")
+            if not ticker_code:
+                continue
+            existing = latest_by_ticker.get(ticker_code)
+            if existing is not None and existing["_updated_at"] >= updated_at:
+                continue
+            enriched = dict(entry)
+            enriched["_updated_at"] = updated_at
+            latest_by_ticker[ticker_code] = enriched
+
+    if not latest_by_ticker:
+        return pd.DataFrame()
+    return pd.DataFrame(latest_by_ticker.values()).rename(columns={"_updated_at": "computed_at"})
+
+
+EDGE_SCREENING_PATH = os.path.join(DATA_DIR, "edge_screening_status.json")
+
+
+@st.cache_data(show_spinner=False, ttl=60)
+def load_genuine_edge_screening():
+    """Membaca hasil scripts/screen_genuine_edge.py -- screening walk-forward
+    penuh (bukan cuma ticker yang kebetulan pernah dianalisis lewat job biasa)
+    untuk seluruh ticker di config/stocks.yaml. Dipakai untuk menggerbang
+    dashboard supaya hanya bekerja dengan ticker yang benar-benar terbukti
+    mengalahkan baseline naif, bukan seluruh ticker tanpa pandang bulu."""
+    if not os.path.exists(EDGE_SCREENING_PATH):
+        return None
+    try:
+        with open(EDGE_SCREENING_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
 
 
 def build_background_ticker_status_df(status):
@@ -2273,7 +2389,7 @@ def render_background_ticker_process(status, job_id, key_suffix=None):
             )
 
 
-def start_background_analysis_job(job_tickers, lstm_epochs=3, duplicate_policy="skip", prediction_run_type=None, force_retrain=False):
+def start_background_analysis_job(job_tickers, lstm_epochs=3, duplicate_policy="skip", prediction_run_type=None, force_retrain=False, include_lstm=False):
     if not LEGACY_MODELS_ENABLED:
         raise RuntimeError("Model lama per-saham sedang dinonaktifkan. Gunakan Global Model untuk prediksi/training baru.")
     normalized = [normalize_ticker_code(t) for t in job_tickers if normalize_ticker_code(t)]
@@ -2298,6 +2414,8 @@ def start_background_analysis_job(job_tickers, lstm_epochs=3, duplicate_policy="
         command.extend(["--run-type", str(prediction_run_type)])
     if force_retrain:
         command.append("--force-retrain")
+    if include_lstm:
+        command.append("--include-lstm")
     creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
     subprocess.Popen(command, cwd=os.getcwd(), creationflags=creationflags)
     st.session_state["active_analysis_job_id"] = job_id
@@ -2368,32 +2486,63 @@ with tab_daily:
     with st.expander("Urutan kerja yang dipakai dashboard", expanded=True):
         st.dataframe(workflow_steps, width="stretch", hide_index=True)
 
-    daily_mode = st.radio(
-        "Mode tampilan",
-        ["Pemula", "Trader", "Audit"],
-        horizontal=True,
-        help="Pemula fokus ke keputusan. Trader menambah angka potensi/risk. Audit menampilkan status data dan job.",
+    daily_mode = display_mode
+    st.caption(
+        f"Mode tampilan **{display_mode}**, batas reliability **{global_min_reliability:.0f}%**, "
+        f"batas confidence **{global_min_confidence:.0f}%**, minimal track record **{int(global_min_evaluations_trading)}** -- "
+        "atur di sidebar 'Pengaturan Sensitivitas & Tampilan' (berlaku untuk semua tab)."
     )
-    min_daily_reliability = st.slider("Batas reliability model minimum", 0.0, 100.0, 55.0, 5.0)
-    min_daily_confidence = st.slider("Batas confidence entry minimum", 0.0, 100.0, 60.0, 5.0)
-    min_daily_evaluations = st.number_input(
-        "Minimal track record per ticker/model",
-        min_value=3,
-        max_value=200,
-        value=20,
-        step=1,
-        help="Sinyal tidak dianggap trusted jika evaluasi historisnya belum mencapai angka ini.",
-    )
+
+    edge_screening = load_genuine_edge_screening()
+    genuine_edge_lookup = None
+    full_edge_lookup = None
+    if edge_screening is None:
+        st.caption(
+            "Filter edge nyata (walk-forward) belum aktif -- jalankan `python scripts/screen_genuine_edge.py` "
+            "untuk membuat data/edge_screening_status.json terlebih dahulu."
+        )
+    else:
+        edge_basis = st.radio(
+            "Definisi 'edge nyata' untuk gate ini",
+            ["Horizon manapun (H+1/H+3/H+5/H+10)", "Hanya H+1"],
+            horizontal=True,
+            help="Screening walk-forward penuh terakhir: "
+            f"{edge_screening.get('total_screened', 0)} ticker, selesai {edge_screening.get('finished_at', '-')}.",
+        )
+        edge_field = "has_any_genuine_edge" if edge_basis.startswith("Horizon manapun") else "has_genuine_edge_h1"
+        full_edge_lookup = {r["ticker"]: bool(r.get(edge_field, False)) for r in edge_screening.get("results", [])}
+        apply_edge_gate = st.checkbox(
+            "Hanya proses ticker dengan edge nyata (walk-forward screening penuh)",
+            value=False,
+            help=f"{sum(full_edge_lookup.values())}/{len(full_edge_lookup)} ticker lolos berdasarkan definisi di atas.",
+        )
+        if apply_edge_gate:
+            genuine_edge_lookup = full_edge_lookup
 
     daily_scope_tickers = active_tickers if active_tickers else tickers
     decision_board_df = build_daily_decision_board(
         daily_scope_tickers,
-        min_reliability=float(min_daily_reliability),
-        min_confidence=float(min_daily_confidence),
-        min_evaluations=int(min_daily_evaluations),
+        min_reliability=float(global_min_reliability),
+        min_confidence=float(global_min_confidence),
+        min_evaluations=int(global_min_evaluations_trading),
         portfolio_capital=float(portfolio_capital),
         risk_per_trade_pct=float(risk_per_trade_pct),
+        genuine_edge_lookup=genuine_edge_lookup,
+        edge_lookup_for_badge=full_edge_lookup,
     )
+    decision_board_df = apply_personalization(decision_board_df)
+
+    regime_history_df = load_regime_history()
+    regime_streak = summarize_regime_streaks(regime_history_df)
+    if regime_streak["current_regime"]:
+        avg_duration = regime_streak["avg_duration_by_regime"].get(regime_streak["current_regime"])
+        avg_duration_text = f", historisnya rata-rata bertahan ~{avg_duration:.0f} hari" if avg_duration else " (belum cukup riwayat untuk rata-rata historis)"
+        st.caption(
+            f"📅 Konteks regime pasar: sudah **{regime_streak['current_streak_days']} hari** di regime "
+            f"**{regime_streak['current_regime']}**{avg_duration_text}. Riwayat dicatat otomatis tiap hari dashboard "
+            "ini dibuka atau workflow harian dijalankan."
+        )
+
     recent_jobs = list_analysis_jobs(limit=5)
     daily_has_running_job = has_running_analysis_job(recent_jobs)
     daily_training_policy = evaluate_training_policy(
@@ -2442,7 +2591,7 @@ with tab_daily:
         )
 
         st.subheader("Tombol Cepat After Market")
-        q1, q2, q3, q4 = st.columns(4)
+        q1, q2, q3 = st.columns(3)
         with q1:
             quick_update_clicked = st.button(
                 "Update Harga Saja",
@@ -2465,14 +2614,6 @@ with tab_daily:
                 help="Prediksi harian tanpa training ulang memakai Global Model.",
                 disabled=daily_has_running_job,
             )
-        with q4:
-            quick_retrain_clicked = st.button(
-                "Retrain Lama Dinonaktifkan",
-                key="daily_quick_retrain_due",
-                help="Menjalankan training background hanya jika belum ada model atau policy retrain due.",
-                disabled=True,
-            )
-
         if quick_update_clicked:
             with st.spinner(f"Update data untuk {len(daily_scope_tickers)} saham..."):
                 st.session_state["daily_quick_update_summary"] = run_auto_updater(
@@ -2499,15 +2640,18 @@ with tab_daily:
                 st.session_state["last_global_model_prediction_summary"] = saved_prediction_summary
             st.success("Prediksi Global Model selesai.")
 
-        if quick_retrain_clicked:
-            st.info("Retrain model lama dinonaktifkan. Training Global Model dijalankan dari CLI agar tidak mengunci Streamlit.")
-
         st.subheader("Checklist Sebelum Sesi Berikutnya")
         render_daily_checklist(decision_board_df, recent_jobs)
 
         st.subheader("Rencana Trading Besok")
+        st.caption(
+            "**Kolom Verifikasi** -- satu badge, dua pengujian sekaligus: ✅ Terverifikasi Ganda = lolos "
+            "riwayat prediksi nyata (live) DAN backtest walk-forward. ⚠️ = cuma lolos salah satu. "
+            "❌ = belum lolos keduanya. Kalau cuma mau lihat satu angka, cukup lihat badge ini saja -- "
+            "tab lain (Model Trust Audit, Walk-Forward Genuine Edge) berisi rincian yang mendasarinya."
+        )
         if daily_mode == "Pemula":
-            display_cols = ["Saham", "Sinyal", "Entry Area", "Stop Loss", "Target H+3", "Alasan Utama", "Trust Model", "Risiko"]
+            display_cols = ["Saham", "Sinyal", "Entry Area", "Stop Loss", "Target H+3", "Alasan Utama", "Verifikasi", "Risiko"]
         elif daily_mode == "Trader":
             display_cols = [
                 "Saham",
@@ -2526,6 +2670,8 @@ with tab_daily:
                 "Reliability",
                 "Evaluasi",
                 "Trust Model",
+                "Verifikasi",
+                "Skor Personal",
                 "Alasan Utama",
             ]
         else:
@@ -2548,12 +2694,16 @@ with tab_daily:
                 "Evaluasi",
                 "Akurasi Arah",
                 "Trust Model",
+                "Verifikasi",
+                "Skor Personal",
+                "Dimute",
                 "Risiko",
                 "Status Data",
                 "Status Analisis",
                 "Tanggal Data",
                 "Alasan Utama",
                 "Catatan Trust",
+                "Catatan Verifikasi",
             ]
 
         action_filter = st.multiselect(
@@ -2562,7 +2712,15 @@ with tab_daily:
             default=st.session_state.get("daily_signal_filter", decision_board_df["Sinyal"].dropna().unique().tolist()),
             key="daily_signal_filter",
         )
+        hide_muted = st.checkbox(
+            "Sembunyikan ticker yang saya mute",
+            value=True,
+            help="Ticker yang di-mute lewat panel 'Detail Per Saham' disembunyikan dari tabel ini, "
+            "tapi tetap dianalisis di belakang layar (bukan dihapus datanya).",
+        )
         view_board_df = decision_board_df[decision_board_df["Sinyal"].isin(action_filter)].copy() if action_filter else decision_board_df
+        if hide_muted and "Dimute" in view_board_df.columns:
+            view_board_df = view_board_df[~view_board_df["Dimute"]]
         st.dataframe(
             view_board_df[display_cols].style.format({
                 "Harga Terakhir": "Rp {:,.0f}",
@@ -2575,10 +2733,110 @@ with tab_daily:
                 "Breadth Naik": "{:.2f}%",
                 "Reliability": "{:.2f}",
                 "Akurasi Arah": "{:.2f}%",
+                "Skor Personal": "{:+.2f}",
             }),
             width="stretch",
             hide_index=True,
         )
+
+        with st.expander("🔍 Detail Per Saham (Trust + Kenapa Model Memprediksi Ini)", expanded=False):
+            detail_tickers = view_board_df["Saham"].dropna().unique().tolist()
+            if not detail_tickers:
+                st.caption("Tidak ada saham pada filter saat ini untuk ditampilkan detailnya.")
+            else:
+                detail_ticker_choice = st.selectbox("Pilih saham untuk detail", options=detail_tickers, key="daily_detail_ticker")
+                detail_row = view_board_df[view_board_df["Saham"] == detail_ticker_choice].iloc[0]
+                st.info(f"**{detail_row['Verifikasi']}** -- {detail_row['Catatan Verifikasi']}")
+
+                def _render_xai_section():
+                    wf_edge_detail_df = load_latest_walk_forward_edge_status()
+                    wf_row = (
+                        wf_edge_detail_df[wf_edge_detail_df["ticker"].astype(str).str.upper() == detail_ticker_choice]
+                        if not wf_edge_detail_df.empty else pd.DataFrame()
+                    )
+                    if wf_row.empty:
+                        st.caption(
+                            "Belum ada data walk-forward/XAI untuk ticker ini -- jalankan analisis lewat tab Workflow Harian terlebih dahulu."
+                        )
+                        return
+                    wf_row = wf_row.iloc[0]
+                    dcol1, dcol2 = st.columns(2)
+                    for col, xai_key, title in (
+                        (dcol1, "xai_direction_h1", "Kenapa Arah H+1 Diprediksi Begini"),
+                        (dcol2, "xai_return_h3", "Kenapa Proyeksi Return H+3 Begini"),
+                    ):
+                        with col:
+                            st.markdown(f"**{title}**")
+                            explanation = wf_row.get(xai_key)
+                            if not isinstance(explanation, dict) or not explanation.get("available"):
+                                reason = explanation.get("reason") if isinstance(explanation, dict) else "Data tidak tersedia -- jalankan analisis dulu."
+                                st.caption(f"Belum tersedia: {reason}")
+                                continue
+                            feat_df = pd.DataFrame(explanation["top_features"])
+                            render_interactive_contribution_bar(feat_df, title=title)
+                            st.dataframe(
+                                feat_df[["feature", "value", "contribution", "direction"]].head(5).style.format({
+                                    "value": "{:.4g}",
+                                    "contribution": "{:+.4f}",
+                                }),
+                                width="stretch",
+                                hide_index=True,
+                            )
+
+                if daily_mode == "Pemula":
+                    with st.expander("📊 Lihat Detail Teknis (Kenapa Model Memprediksi Ini -- opsional)", expanded=False):
+                        _render_xai_section()
+                else:
+                    _render_xai_section()
+
+                st.divider()
+                st.markdown("**Beri Umpan Balik untuk Rekomendasi Ini**")
+                st.caption(
+                    "Umpan balik ini TIDAK mengubah prediksi model -- hanya tersimpan sebagai jurnal keputusan "
+                    "Anda sendiri (dan dasar personalisasi tampilan di masa depan)."
+                )
+                fb_col1, fb_col2, fb_col3, fb_col4 = st.columns(4)
+                fb_actions = [
+                    (fb_col1, "✅ Saya Ikuti", "IKUTI"),
+                    (fb_col2, "⏭ Saya Lewati", "LEWATI"),
+                    (fb_col3, "👍 Berguna", "BERGUNA"),
+                    (fb_col4, "👎 Tidak Berguna", "TIDAK_BERGUNA"),
+                ]
+                for fb_col, fb_label, fb_action in fb_actions:
+                    if fb_col.button(fb_label, key=f"fb_{fb_action}_{detail_ticker_choice}"):
+                        log_user_feedback(detail_ticker_choice, detail_row["Sinyal"], fb_action)
+                        st.success(f"Tersimpan: {fb_label}")
+
+                ticker_feedback_history = load_user_feedback()
+                if not ticker_feedback_history.empty:
+                    ticker_feedback_history = ticker_feedback_history[
+                        ticker_feedback_history["ticker"].astype(str).str.upper() == detail_ticker_choice
+                    ]
+                if not ticker_feedback_history.empty:
+                    with st.expander(f"Riwayat umpan balik Anda untuk {detail_ticker_choice}", expanded=False):
+                        st.dataframe(
+                            ticker_feedback_history.sort_values("timestamp", ascending=False),
+                            width="stretch",
+                            hide_index=True,
+                        )
+
+                current_profile = load_user_profile()
+                is_muted = detail_ticker_choice in current_profile["muted_tickers"]
+                mute_col1, mute_col2 = st.columns([1, 3])
+                with mute_col1:
+                    if is_muted:
+                        if st.button("🔊 Un-mute Ticker Ini", key=f"unmute_{detail_ticker_choice}"):
+                            unmute_ticker(detail_ticker_choice)
+                            st.success(f"{detail_ticker_choice} tidak lagi di-mute.")
+                    else:
+                        if st.button("🔇 Mute Ticker Ini", key=f"mute_{detail_ticker_choice}"):
+                            mute_ticker(detail_ticker_choice)
+                            st.success(f"{detail_ticker_choice} di-mute dari tampilan Rencana Trading.")
+                with mute_col2:
+                    st.caption(
+                        "Mute menyembunyikan ticker ini dari tabel Rencana Trading (bukan dari analisis) -- "
+                        "berguna untuk saham yang tidak relevan buat Anda, terlepas dari sinyal modelnya."
+                    )
 
         buy_plan_df = decision_board_df[decision_board_df["Sinyal"].astype(str).str.contains("BUY", regex=False)].copy()
         if buy_plan_df.empty:
@@ -2655,150 +2913,89 @@ def render_daily_workflow_summary(summary):
             st.dataframe(pd.DataFrame(details), width="stretch", hide_index=True)
 
 
-if LEGACY_MODELS_ENABLED and tab_final is not None:
-  with tab_final:
-    st.header("FINAL Lama Arsip")
-    st.write(
-        "Tab ini dipertahankan sebagai arsip/evaluasi prediksi lama. Prediksi baru dibuat melalui Global Model di tab Workflow Harian."
-    )
-    st.info(
-        "Model lama per-saham dinonaktifkan. Log FINAL lama tetap dipakai untuk evaluasi akurasi historis."
+with tab_beranda:
+    st.header("🏠 Beranda")
+    st.caption(
+        "Satu pandangan ringkas untuk semua yang penting hari ini -- kalau cuma sempat buka satu tab, "
+        "buka ini. Detail lengkap tetap ada di tab lain (Ringkasan Harian, Akurasi Model, Sentimen Pasar)."
     )
 
-    final_scope_col, final_model_col, final_epoch_col = st.columns([1.4, 1.2, 0.8])
-    with final_scope_col:
-        final_scope = st.radio(
-            "Cakupan prediksi FINAL",
-            ["Saham aktif", "Semua saham", "Saham tertentu"],
-            index=1 if use_all_tickers else 0,
-            horizontal=True,
-            key="final_prediction_scope",
-        )
-    with final_model_col:
-        final_required_models = st.multiselect(
-            "Model wajib untuk status H+3",
-            options=["XGBoost", "LSTM"],
-            default=["XGBoost"],
-            key="final_required_models",
-        )
-    with final_epoch_col:
-        final_lstm_epochs = st.number_input(
-            "Epoch LSTM",
-            min_value=1,
-            max_value=20,
-            value=3,
-            step=1,
-            key="final_lstm_epochs",
-        )
-
-    if final_scope == "Semua saham":
-        final_scope_tickers = tickers
-    elif final_scope == "Saham tertentu":
-        default_final_selection = [ticker] if ticker in tickers else tickers[: min(5, len(tickers))]
-        final_scope_tickers = st.multiselect(
-            "Pilih saham untuk prediksi FINAL",
-            options=tickers,
-            default=default_final_selection,
-            key="final_specific_tickers",
-        )
+    if decision_board_df.empty:
+        st.info("Belum ada data prediksi untuk ditampilkan. Jalankan Workflow Harian terlebih dahulu.")
     else:
-        final_scope_tickers = active_tickers if active_tickers else ([ticker] if ticker else [])
-
-    final_status_df = build_final_prediction_workflow_status(
-        final_scope_tickers,
-        required_models=final_required_models,
-    )
-
-    if final_status_df.empty:
-        st.warning("Belum ada saham yang bisa dicek. Pastikan ticker aktif dan data lokal tersedia.")
-    else:
-        final_ready_df = final_status_df[final_status_df["Kesiapan"] == "SIAP PREDIKSI FINAL"].copy()
-        final_done_df = final_status_df[final_status_df["Kesiapan"] == "FINAL SUDAH ADA"].copy()
-        final_due_pending = int(final_status_df["Pending FINAL Jatuh Tempo"].sum())
-        f1, f2, f3, f4 = st.columns(4)
-        f1.metric("Saham Dicek", len(final_status_df))
-        f2.metric("Siap FINAL", len(final_ready_df))
-        f3.metric("FINAL Sudah Ada", len(final_done_df))
-        f4.metric("Pending Jatuh Tempo", final_due_pending)
-
-        st.subheader("Urutan Kerja Trusted")
-        step1, step2, step3 = st.columns(3)
-        with step1:
-            st.markdown("**1. Update data lokal**")
-            if offline_mode:
-                st.caption("Mode offline aktif. Import/update CSV lokal terlebih dahulu jika data target H+1/H+3 sudah tersedia.")
-                update_final_clicked = False
-            else:
-                update_final_clicked = st.button(
-                "Update Harga Online",
-                    key="final_online_update",
-                    disabled=not bool(final_scope_tickers),
-                )
-            if update_final_clicked:
-                with st.spinner(f"Update data untuk {len(final_scope_tickers)} saham..."):
-                    st.session_state["final_update_summary"] = run_auto_updater(
-                        tickers=final_scope_tickers,
-                        sleep_seconds=0.05,
-                    )
-                st.success("Update data selesai.")
-                render_update_summary(st.session_state["final_update_summary"])
-
-        with step2:
-            st.markdown("**2. Evaluasi prediksi lama**")
-            st.caption("Mengubah pending FINAL menjadi evaluated jika harga aktual target sudah tersedia.")
-            if st.button("Evaluasi Pending FINAL", key="final_evaluate_pending", type="primary"):
-                with st.spinner("Mengevaluasi prediksi pending yang sudah jatuh tempo..."):
-                    evaluate_pending_predictions()
-                st.success("Evaluasi pending selesai. Refresh status untuk melihat perubahan.")
-
-        with step3:
-            st.markdown("**3. Jalankan FINAL hari ini**")
-            final_data_confirmed = st.checkbox(
-                "Saya konfirmasi data harga hari ini sudah final/bersih",
-                value=False,
-                key="final_data_confirmed",
-            )
-            final_to_predict = final_ready_df["Saham"].dropna().astype(str).tolist()
-            run_final_clicked = st.button(
-                "Jalankan Prediksi FINAL Lama",
-                key="run_daily_final_prediction",
-                type="primary",
-                disabled=(not LEGACY_MODELS_ENABLED or not final_data_confirmed or not bool(final_to_predict)),
-                help="Dinonaktifkan karena model lama per-saham tidak lagi dipakai. Gunakan Global Model.",
-            )
-            if run_final_clicked:
-                job_id = start_background_analysis_job(
-                    final_to_predict,
-                    lstm_epochs=int(final_lstm_epochs),
-                    duplicate_policy="skip",
-                    prediction_run_type="FINAL",
-                )
-                st.session_state["final_prediction_job_id"] = job_id
-                st.success(f"Job prediksi FINAL dimulai untuk {len(final_to_predict)} saham. Job ID: {job_id}")
-
-        if "final_prediction_job_id" in st.session_state:
-            with st.expander("Status job prediksi FINAL", expanded=True):
-                render_background_analysis_job(st.session_state["final_prediction_job_id"])
-
-        st.subheader("Audit Kesiapan Prediksi FINAL")
-        status_filter = st.selectbox(
-            "Filter kesiapan",
-            options=["SEMUA"] + sorted(final_status_df["Kesiapan"].dropna().unique().tolist()),
-            key="final_readiness_filter",
+        has_verifikasi = "Verifikasi" in decision_board_df.columns
+        buy_mask = decision_board_df["Sinyal"].astype(str).str.contains("BUY", regex=False)
+        verified_mask = (
+            decision_board_df["Verifikasi"] == "✅ Terverifikasi Ganda"
+            if has_verifikasi else pd.Series(False, index=decision_board_df.index)
         )
-        view_final_status_df = final_status_df.copy()
-        if status_filter != "SEMUA":
-            view_final_status_df = view_final_status_df[view_final_status_df["Kesiapan"] == status_filter]
-        st.dataframe(view_final_status_df, width="stretch", hide_index=True)
 
-        with st.expander("Aturan reliability trusted", expanded=False):
-            trusted_rules = pd.DataFrame([
-                {"Aturan": "Run type", "Nilai": "FINAL saja", "Dampak": "INTRADAY dan BACKFILL tidak dihitung sebagai reliability trusted."},
-                {"Aturan": "Duplikasi", "Nilai": "Lewati duplikat", "Dampak": "Prediksi data/tanggal/model yang sama tidak menggandakan akurasi."},
-                {"Aturan": "Evaluasi", "Nilai": "Setelah target tersedia", "Dampak": "PENDING berubah ke EVALUATED hanya jika harga aktual sudah ada di data lokal."},
-                {"Aturan": "Data lama", "Nilai": "UNKNOWN_LEGACY", "Dampak": "Catatan lama tetap arsip, tetapi tidak dipakai sebagai trusted score baru."},
-            ])
-            st.dataframe(trusted_rules, width="stretch", hide_index=True)
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("Sinyal BUY Hari Ini", int(buy_mask.sum()))
+        k2.metric("Terverifikasi Ganda", int(verified_mask.sum()) if has_verifikasi else "-")
+        k3.metric(
+            "Regime Pasar",
+            regime_streak["current_regime"] or "-",
+            help=(
+                f"Sudah {regime_streak['current_streak_days']} hari di regime ini"
+                if regime_streak["current_regime"] else "Belum ada riwayat regime."
+            ),
+        )
+        k4.metric("Data Terakhir", daily_readiness.get("latest_data", "-"))
+
+        st.divider()
+        st.subheader("🎯 Top Picks (Sinyal BUY + Terverifikasi Ganda)")
+        st.caption(
+            "Bukan daftar semua saham -- cuma yang lolos DUA syarat sekaligus: sinyal BUY dan sudah "
+            "terverifikasi lewat live track record MAUPUN backtest walk-forward."
+        )
+        top_picks_df = decision_board_df[buy_mask & verified_mask].copy() if has_verifikasi else pd.DataFrame()
+        if top_picks_df.empty:
+            st.info(
+                "Belum ada ticker yang memenuhi kedua syarat sekaligus saat ini -- ini bukan error, "
+                "memang tidak selalu ada peluang berkualitas tinggi tiap hari."
+            )
+        else:
+            top_pick_cols = [c for c in ["Saham", "Sinyal", "Entry Area", "Stop Loss", "Target H+3", "Verifikasi", "Alasan Utama"] if c in top_picks_df.columns]
+            st.dataframe(top_picks_df[top_pick_cols], width="stretch", hide_index=True)
+
+        st.divider()
+        st.subheader("⚠️ Peringatan")
+        alerts = []
+        if daily_readiness.get("status") not in ("SIAP PREDIKSI HARIAN", "SIAP PREDIKSI - RETRAIN TERJADWAL"):
+            alerts.append(f"Status kesiapan: **{daily_readiness.get('status')}** -- {daily_readiness.get('action', '')}")
+        troubled_jobs = [job for job in recent_jobs if job.get("status") in ("STALE", "FAILED", "UNKNOWN")]
+        if troubled_jobs:
+            alerts.append(f"{len(troubled_jobs)} job background bermasalah -- cek tab Workflow Harian.")
+        latest_daily_run = get_latest_daily_workflow_run()
+        if latest_daily_run and latest_daily_run.get("status") == "FAILED":
+            failed_steps = [s.get("step") for s in latest_daily_run.get("steps", []) if s.get("status") == "FAILED"]
+            alerts.append(
+                "Workflow harian otomatis (Task Scheduler) TERAKHIR gagal"
+                + (f" di step: {', '.join(failed_steps)}" if failed_steps else "")
+                + " -- prediksi/data mungkin tidak up-to-date. Cek `logs/daily_workflow.log`."
+            )
+        elif latest_daily_run and latest_daily_run.get("_mtime"):
+            hours_since = (datetime.now().timestamp() - latest_daily_run["_mtime"]) / 3600
+            if hours_since > 48 and datetime.now().weekday() < 5:
+                alerts.append(
+                    f"Workflow harian otomatis belum jalan lagi sejak >{int(hours_since // 24)} hari -- "
+                    "cek apakah Task Scheduler masih aktif (`Get-ScheduledTaskInfo -TaskName 'AITrading_DailyWorkflow'`)."
+                )
+        if "Status Analisis" in decision_board_df.columns:
+            unfinished_count = int((decision_board_df["Status Analisis"] != "LENGKAP").sum())
+            if unfinished_count:
+                alerts.append(f"{unfinished_count} saham belum lengkap analisisnya -- cek tab Workflow Harian.")
+        if not alerts:
+            st.success("Tidak ada peringatan aktif. Semua sistem berjalan normal.")
+        else:
+            for alert in alerts:
+                st.warning(alert)
+
+        st.caption(
+            "Detail lengkap: tab **Ringkasan Harian** (semua sinyal), **Akurasi Model** (kepercayaan model), "
+            "**Sentimen Pasar** (konteks berita)."
+        )
 
 
 with tab_update:
@@ -3004,7 +3201,7 @@ with tab_update:
                     progress_callback=progress_callback,
                 )
                 st.session_state["last_global_model_prediction_summary"] = global_prediction_summary
-            st.success("Prediksi harian Global Model selesai. Hasilnya masuk ke Ranking Prediksi dengan nama model Global-*.")
+            st.success("Prediksi harian Global Model selesai. Hasilnya masuk ke Ranking Mentah (Riset) dengan nama model Global-*.")
 
         if "last_global_model_prediction_summary" in st.session_state:
             global_summary = st.session_state["last_global_model_prediction_summary"]
@@ -3110,7 +3307,7 @@ with tab_update:
                         "status": "SELESAI",
                         "ringkasan": f"{len(saved_prediction_summary.get('predicted', []))} saham berhasil diprediksi.",
                     })
-                    st.success("Proses harian disarankan selesai. Cek Ranking Prediksi.")
+                    st.success("Proses harian disarankan selesai. Cek Ringkasan Harian untuk rencana trading yang sudah tergate.")
             else:
                 st.info(workflow_readiness["action"])
                 recommended_summary["details"].append({
@@ -3555,17 +3752,20 @@ with tab_update:
                 st.info(f"Data lokal terakhir: {latest_dates.max()}")
             st.dataframe(status_df, width="stretch")
 
-    col_status, col_force = st.columns(2)
-    with col_status:
+    if LEGACY_MODELS_ENABLED:
+        col_status, col_force = st.columns(2)
+        with col_status:
+            if st.button("Cek Status Update Harga", disabled=not bool(selected_tickers)):
+                st.session_state["local_data_status"] = get_local_data_status(selected_tickers)
+        with col_force:
+            force_analysis_clicked = st.button(
+                "Paksa Analisis Ulang dari Data Lokal",
+                disabled=not bool(selected_tickers),
+            )
+    else:
+        force_analysis_clicked = False
         if st.button("Cek Status Update Harga", disabled=not bool(selected_tickers)):
             st.session_state["local_data_status"] = get_local_data_status(selected_tickers)
-
-    with col_force:
-        force_analysis_clicked = st.button(
-            "Paksa Analisis Ulang dari Data Lokal",
-            disabled=(not bool(selected_tickers) or not LEGACY_MODELS_ENABLED),
-            help="Dinonaktifkan karena model lama per-saham tidak lagi dipakai.",
-        )
 
     if "local_data_status" in st.session_state:
         st.dataframe(st.session_state["local_data_status"], width="stretch")
@@ -3607,129 +3807,143 @@ with tab_update:
                     "Sebagian file data tidak ada. Untuk kasus ini, jalankan update data online atau upload CSV manual."
                 )
 
-    st.markdown("---")
-    st.subheader("8. Job Background Analisis")
-    st.caption(
-        "Gunakan mode background untuk analisis banyak saham. Proses tetap berjalan sebagai proses terpisah, "
-        "sementara dashboard hanya membaca progres dari file status."
-    )
-    bg_col1, bg_col2 = st.columns([1, 1])
-    with bg_col1:
-        background_lstm_epochs = st.number_input(
-            "Epoch LSTM untuk job background",
-            min_value=1,
-            max_value=20,
-            value=3,
-            step=1,
-            help="Untuk proses harian, 3 epoch biasanya cukup cepat. Naikkan jika ingin model LSTM belajar lebih lama.",
+    if LEGACY_MODELS_ENABLED:
+        st.markdown("---")
+        st.subheader("8. Job Background Analisis")
+        st.caption(
+            "Gunakan mode background untuk analisis banyak saham. Proses tetap berjalan sebagai proses terpisah, "
+            "sementara dashboard hanya membaca progres dari file status."
         )
-    with bg_col2:
-        execution_mode = st.radio(
-            "Mode eksekusi analisis",
-            ["Background", "Langsung di halaman"],
-            horizontal=True,
-            help="Background disarankan untuk banyak saham karena tetap berjalan walau dashboard rerun atau Anda berpindah tab.",
-        )
-
-    recent_jobs = list_analysis_jobs(limit=10)
-    if recent_jobs:
-        job_options = [job["job_id"] for job in recent_jobs]
-        selected_job_id = st.selectbox(
-            "Pantau job background",
-            options=job_options,
-            index=job_options.index(st.session_state["active_analysis_job_id"]) if st.session_state.get("active_analysis_job_id") in job_options else 0,
-            format_func=lambda job_id: next(
-                (
-                    f"{job_id} | {job['status']} | {job['updated_at']}"
-                    for job in recent_jobs
-                    if job["job_id"] == job_id
+        bg_col1, bg_col2 = st.columns([1, 1])
+        with bg_col1:
+            background_include_lstm = st.checkbox(
+                "Sertakan LSTM",
+                value=False,
+                help=(
+                    "Model paling mahal dilatih (PyTorch) dan belum divalidasi walk-forward apa pun -- "
+                    "default mati supaya job background lebih ringan. Aktifkan hanya kalau butuh proyeksi LSTM."
                 ),
-                job_id,
-            ),
-        )
-        if st.button("Gunakan Job Ini sebagai Job Aktif"):
-            st.session_state["active_analysis_job_id"] = selected_job_id
-            st.rerun()
-
-    active_job_id = st.session_state.get("active_analysis_job_id")
-    if active_job_id:
-        render_background_analysis_job(active_job_id)
-        if st.button("Refresh Status Job Background"):
-            st.rerun()
-
-    st.markdown("---")
-    st.subheader("9. Audit Kelengkapan Analisis Setelah Update")
-    st.caption(
-        "Fitur ini mengecek apakah setiap saham sudah punya prediksi H+3 untuk tanggal data lokal terakhir. "
-        "Gunakan sebelum trading harian untuk memastikan tidak ada saham yang tertinggal setelah update data."
-    )
-
-    required_analysis_models = st.multiselect(
-        "Model wajib untuk dianggap lengkap",
-        options=["XGBoost", "LSTM"],
-        default=["XGBoost"],
-        help="XGBoost menjadi default karena selalu dipakai oleh pipeline utama. Aktifkan LSTM jika PyTorch sudah tersedia dan Anda ingin mewajibkan prediksi LSTM juga.",
-    )
-    audit_clicked = st.button("Cek Saham yang Belum Selesai Dianalisis", disabled=not bool(selected_tickers))
-
-    if audit_clicked:
-        st.session_state["analysis_completion_status"] = build_analysis_completion_status(
-            selected_tickers,
-            required_models=required_analysis_models,
-        )
-
-    if "analysis_completion_status" in st.session_state:
-        completion_df = st.session_state["analysis_completion_status"]
-        if completion_df.empty:
-            st.info("Belum ada saham yang bisa diaudit.")
-        else:
-            total_ready = int((completion_df["status_analisis"] == "LENGKAP").sum())
-            total_unfinished = int((completion_df["status_analisis"] == "BELUM SELESAI").sum())
-            total_data_issue = int((completion_df["status_analisis"] == "DATA BELUM SIAP").sum())
-            c_ready, c_unfinished, c_data_issue = st.columns(3)
-            c_ready.metric("Analisis Lengkap", total_ready)
-            c_unfinished.metric("Belum Selesai", total_unfinished)
-            c_data_issue.metric("Data Belum Siap", total_data_issue)
-            st.dataframe(completion_df, width="stretch", hide_index=True)
-
-            unfinished_tickers = completion_df.loc[
-                completion_df["status_analisis"] == "BELUM SELESAI",
-                "ticker",
-            ].dropna().astype(str).tolist()
-
-            rerun_unfinished_clicked = st.button(
-                "Jalankan Ulang Analisis untuk Saham yang Belum Selesai",
-                type="primary",
-                disabled=(not bool(unfinished_tickers) or not LEGACY_MODELS_ENABLED),
+                key="background_include_lstm",
+            )
+            background_lstm_epochs = st.number_input(
+                "Epoch LSTM untuk job background",
+                min_value=1,
+                max_value=20,
+                value=3,
+                step=1,
+                disabled=not background_include_lstm,
+                help="Untuk proses harian, 3 epoch biasanya cukup cepat. Naikkan jika ingin model LSTM belajar lebih lama.",
+            )
+        with bg_col2:
+            execution_mode = st.radio(
+                "Mode eksekusi analisis",
+                ["Background", "Langsung di halaman"],
+                horizontal=True,
+                help="Background disarankan untuk banyak saham karena tetap berjalan walau dashboard rerun atau Anda berpindah tab.",
             )
 
-            if rerun_unfinished_clicked:
-                if execution_mode == "Background":
-                    job_id = start_background_analysis_job(
-                        unfinished_tickers,
-                        lstm_epochs=int(background_lstm_epochs),
-                        duplicate_policy=daily_duplicate_policy,
-                        prediction_run_type=daily_prediction_run_type,
-                    )
-                    st.success(f"Job background dimulai untuk {len(unfinished_tickers)} saham. Job ID: {job_id}")
-                    render_background_analysis_job(job_id)
-                else:
-                    with st.spinner(f"Menjalankan ulang analisis untuk {len(unfinished_tickers)} saham yang belum selesai..."):
-                        progress_callback = create_live_analysis_tracker("Live Progress Analisis Saham Tertinggal")
-                        analysis_summary = run_full_analysis(
-                            tickers=unfinished_tickers,
+        recent_jobs = list_analysis_jobs(limit=10)
+        if recent_jobs:
+            job_options = [job["job_id"] for job in recent_jobs]
+            selected_job_id = st.selectbox(
+                "Pantau job background",
+                options=job_options,
+                index=job_options.index(st.session_state["active_analysis_job_id"]) if st.session_state.get("active_analysis_job_id") in job_options else 0,
+                format_func=lambda job_id: next(
+                    (
+                        f"{job_id} | {job['status']} | {job['updated_at']}"
+                        for job in recent_jobs
+                        if job["job_id"] == job_id
+                    ),
+                    job_id,
+                ),
+            )
+            if st.button("Gunakan Job Ini sebagai Job Aktif"):
+                st.session_state["active_analysis_job_id"] = selected_job_id
+                st.rerun()
+
+        active_job_id = st.session_state.get("active_analysis_job_id")
+        if active_job_id:
+            render_background_analysis_job(active_job_id)
+            if st.button("Refresh Status Job Background"):
+                st.rerun()
+
+    if LEGACY_MODELS_ENABLED:
+        st.markdown("---")
+        st.subheader("9. Audit Kelengkapan Analisis Setelah Update")
+        st.caption(
+            "Fitur ini mengecek apakah setiap saham sudah punya prediksi H+3 untuk tanggal data lokal terakhir. "
+            "Gunakan sebelum trading harian untuk memastikan tidak ada saham yang tertinggal setelah update data."
+        )
+
+        required_analysis_models = st.multiselect(
+            "Model wajib untuk dianggap lengkap",
+            options=["XGBoost", "LSTM"],
+            default=["XGBoost"],
+            help="XGBoost menjadi default karena selalu dipakai oleh pipeline utama. Aktifkan LSTM jika PyTorch sudah tersedia dan Anda ingin mewajibkan prediksi LSTM juga.",
+        )
+        audit_clicked = st.button("Cek Saham yang Belum Selesai Dianalisis", disabled=not bool(selected_tickers))
+
+        if audit_clicked:
+            st.session_state["analysis_completion_status"] = build_analysis_completion_status(
+                selected_tickers,
+                required_models=required_analysis_models,
+            )
+
+        if "analysis_completion_status" in st.session_state:
+            completion_df = st.session_state["analysis_completion_status"]
+            if completion_df.empty:
+                st.info("Belum ada saham yang bisa diaudit.")
+            else:
+                total_ready = int((completion_df["status_analisis"] == "LENGKAP").sum())
+                total_unfinished = int((completion_df["status_analisis"] == "BELUM SELESAI").sum())
+                total_data_issue = int((completion_df["status_analisis"] == "DATA BELUM SIAP").sum())
+                c_ready, c_unfinished, c_data_issue = st.columns(3)
+                c_ready.metric("Analisis Lengkap", total_ready)
+                c_unfinished.metric("Belum Selesai", total_unfinished)
+                c_data_issue.metric("Data Belum Siap", total_data_issue)
+                st.dataframe(completion_df, width="stretch", hide_index=True)
+
+                unfinished_tickers = completion_df.loc[
+                    completion_df["status_analisis"] == "BELUM SELESAI",
+                    "ticker",
+                ].dropna().astype(str).tolist()
+
+                rerun_unfinished_clicked = st.button(
+                    "Jalankan Ulang Analisis untuk Saham yang Belum Selesai",
+                    type="primary",
+                    disabled=not bool(unfinished_tickers),
+                )
+
+                if rerun_unfinished_clicked:
+                    if execution_mode == "Background":
+                        job_id = start_background_analysis_job(
+                            unfinished_tickers,
                             lstm_epochs=int(background_lstm_epochs),
-                            progress_callback=progress_callback,
                             duplicate_policy=daily_duplicate_policy,
                             prediction_run_type=daily_prediction_run_type,
+                            include_lstm=bool(background_include_lstm),
                         )
-                        st.session_state["last_auto_analysis_summary"] = analysis_summary
-                        st.session_state["analysis_completion_status"] = build_analysis_completion_status(
-                            selected_tickers,
-                            required_models=required_analysis_models,
-                        )
-                    st.success("Analisis ulang saham yang belum selesai sudah dijalankan.")
-                    render_analysis_summary(analysis_summary)
+                        st.success(f"Job background dimulai untuk {len(unfinished_tickers)} saham. Job ID: {job_id}")
+                        render_background_analysis_job(job_id)
+                    else:
+                        with st.spinner(f"Menjalankan ulang analisis untuk {len(unfinished_tickers)} saham yang belum selesai..."):
+                            progress_callback = create_live_analysis_tracker("Live Progress Analisis Saham Tertinggal")
+                            analysis_summary = run_full_analysis(
+                                tickers=unfinished_tickers,
+                                lstm_epochs=int(background_lstm_epochs),
+                                progress_callback=progress_callback,
+                                duplicate_policy=daily_duplicate_policy,
+                                prediction_run_type=daily_prediction_run_type,
+                                include_lstm=bool(background_include_lstm),
+                            )
+                            st.session_state["last_auto_analysis_summary"] = analysis_summary
+                            st.session_state["analysis_completion_status"] = build_analysis_completion_status(
+                                selected_tickers,
+                                required_models=required_analysis_models,
+                            )
+                        st.success("Analisis ulang saham yang belum selesai sudah dijalankan.")
+                        render_analysis_summary(analysis_summary)
 
     if force_analysis_clicked:
         force_tickers = [str(ticker).replace(".JK", "").upper().strip() for ticker in selected_tickers if str(ticker).strip()]
@@ -3739,6 +3953,7 @@ with tab_update:
                 lstm_epochs=int(background_lstm_epochs),
                 duplicate_policy=daily_duplicate_policy,
                 prediction_run_type=daily_prediction_run_type,
+                include_lstm=bool(background_include_lstm),
             )
             st.success(f"Job background analisis ulang dimulai untuk {len(force_tickers)} saham. Job ID: {job_id}")
             render_background_analysis_job(job_id)
@@ -3749,6 +3964,7 @@ with tab_update:
                     lstm_epochs=int(background_lstm_epochs),
                     duplicate_policy=daily_duplicate_policy,
                     prediction_run_type=daily_prediction_run_type,
+                    include_lstm=bool(background_include_lstm),
                 )
                 st.session_state["last_auto_analysis_summary"] = analysis_summary
             st.success("Analisis ulang dari data lokal selesai.")
@@ -3793,31 +4009,46 @@ with tab_update:
     if offline_mode:
         auto_enabled = False
     interval_minutes = st.number_input("Interval update berkala (menit)", min_value=5, max_value=1440, value=60, step=5)
-    rerun_analysis_after_update = st.checkbox(
-        "Jalankan analisis ulang otomatis setelah update data",
-        value=False,
-        disabled=not LEGACY_MODELS_ENABLED,
-        help="Setelah data harga diperbarui, dashboard akan membuat ulang prediksi/ranking untuk ticker terkait.",
-    )
-    analysis_scope_after_update = st.radio(
-        "Cakupan analisis ulang",
-        ["Hanya saham yang berhasil diperbarui", "Semua saham yang dipilih"],
-        horizontal=True,
-        disabled=not rerun_analysis_after_update,
-    )
-    analysis_lstm_epochs = st.number_input(
-        "Epoch LSTM untuk analisis otomatis",
-        min_value=1,
-        max_value=20,
-        value=3,
-        step=1,
-        disabled=not rerun_analysis_after_update,
-        help="Semakin besar epoch, analisis lebih lama. Untuk update otomatis, 3 epoch biasanya cukup.",
-    )
-    st.caption(
-        "Epoch LSTM = jumlah putaran belajar model dari data historis. "
-        "Nilai kecil lebih cepat dan cocok untuk analisis harian; nilai terlalu besar bisa lebih lama dan berisiko overfit pada pola lama."
-    )
+    if LEGACY_MODELS_ENABLED:
+        rerun_analysis_after_update = st.checkbox(
+            "Jalankan analisis ulang otomatis setelah update data",
+            value=False,
+            help="Setelah data harga diperbarui, dashboard akan membuat ulang prediksi/ranking untuk ticker terkait.",
+        )
+        analysis_scope_after_update = st.radio(
+            "Cakupan analisis ulang",
+            ["Hanya saham yang berhasil diperbarui", "Semua saham yang dipilih"],
+            horizontal=True,
+            disabled=not rerun_analysis_after_update,
+        )
+        analysis_include_lstm = st.checkbox(
+            "Sertakan LSTM saat analisis ulang otomatis",
+            value=False,
+            disabled=not rerun_analysis_after_update,
+            help=(
+                "Model paling mahal dilatih (PyTorch) dan belum divalidasi walk-forward apa pun -- "
+                "default mati supaya analisis otomatis tetap ringan."
+            ),
+            key="analysis_include_lstm",
+        )
+        analysis_lstm_epochs = st.number_input(
+            "Epoch LSTM untuk analisis otomatis",
+            min_value=1,
+            max_value=20,
+            value=3,
+            step=1,
+            disabled=not rerun_analysis_after_update or not analysis_include_lstm,
+            help="Semakin besar epoch, analisis lebih lama. Untuk update otomatis, 3 epoch biasanya cukup.",
+        )
+        st.caption(
+            "Epoch LSTM = jumlah putaran belajar model dari data historis. "
+            "Nilai kecil lebih cepat dan cocok untuk analisis harian; nilai terlalu besar bisa lebih lama dan berisiko overfit pada pola lama."
+        )
+    else:
+        rerun_analysis_after_update = False
+        analysis_scope_after_update = "Hanya saham yang berhasil diperbarui"
+        analysis_include_lstm = False
+        analysis_lstm_epochs = 3
 
     if auto_enabled:
         refresh_seconds = int(interval_minutes * 60)
@@ -3880,9 +4111,10 @@ with tab_update:
                         progress_callback=progress_callback,
                         duplicate_policy=daily_duplicate_policy,
                         prediction_run_type=daily_prediction_run_type,
+                        include_lstm=bool(analysis_include_lstm),
                     )
                     st.session_state["last_auto_analysis_summary"] = analysis_summary
-                st.success("Analisis ulang selesai. Tab Ranking Prediksi dan Akurasi Model sudah memakai prediksi terbaru.")
+                st.success("Analisis ulang selesai. Tab Ringkasan Harian dan Akurasi Model sudah memakai prediksi terbaru.")
             else:
                 st.info("Tidak ada saham yang perlu dianalisis ulang dari hasil update ini.")
 
@@ -3895,208 +4127,252 @@ with tab_update:
         render_analysis_summary(analysis_summary)
 
 with tab_ranking:
-    st.header("Ranking Prediksi")
-    st.write("Menampilkan potensi kenaikan dan penurunan berdasarkan hasil prediksi model terbaru.")
-    
-    pred_file = project_path("data", "tracking", "predictions_log.csv")
-    pred_status_df = load_prediction_log(pred_file)
-    clean_preview_df, prediction_audit = audit_prediction_csv(pred_file)
-    with st.expander("Audit & Pembersihan Log Prediksi", expanded=not prediction_audit.is_clean):
-        audit_col1, audit_col2, audit_col3 = st.columns(3)
-        audit_col1.metric("Total Baris", f"{prediction_audit.total_rows:,}".replace(",", "."))
-        audit_col2.metric("Baris Valid", f"{prediction_audit.valid_rows:,}".replace(",", "."))
-        audit_col3.metric("Baris Bermasalah", f"{prediction_audit.invalid_rows:,}".replace(",", "."))
-        if prediction_audit.missing_columns:
-            st.error(f"Kolom wajib hilang: {', '.join(prediction_audit.missing_columns)}")
-        elif prediction_audit.invalid_rows:
-            st.warning("Ada baris abnormal di log prediksi. Ranking otomatis mengabaikan baris ini.")
-            st.write("Ringkasan penyebab:")
-            st.dataframe(
-                pd.DataFrame(
-                    [
-                        {"Penyebab": reason, "Jumlah": count}
-                        for reason, count in prediction_audit.invalid_reason_counts.items()
-                    ]
-                ),
-                width="stretch",
-                hide_index=True,
-            )
-            st.write("Preview baris bermasalah:")
-            st.dataframe(prediction_audit.invalid_preview, width="stretch", hide_index=True)
-            if st.button("Bersihkan predictions_log.csv", type="primary"):
-                try:
-                    backup_path, cleaned_audit = clean_prediction_csv(
-                        pred_file,
-                        backup_dir=project_path("data", "tracking", "backups"),
-                    )
-                    st.success(
-                        f"Pembersihan selesai. {cleaned_audit.invalid_rows} baris abnormal dipindahkan dari file aktif. "
-                        f"Backup dibuat di `{backup_path}`."
-                    )
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Gagal membersihkan log prediksi: {e}")
-        else:
-            st.success("Log prediksi bersih. Ranking memakai semua baris valid.")
-
-    if pred_status_df.empty:
-        render_feature_status("Ranking Prediksi", "BELUM LENGKAP", "Belum ada prediksi aktif.", "Jalankan analisis saham terlebih dahulu.")
-    else:
-        latest_prediction_date = pred_status_df["current_date"].dropna().astype(str).max()
-        active_prediction_count = int(pred_status_df["is_active"].sum())
-        render_feature_status(
-            "Ranking Prediksi",
-            "SIAP" if active_prediction_count else "BELUM LENGKAP",
-            f"{active_prediction_count} prediksi aktif. Tanggal terbaru: {latest_prediction_date}.",
-            "Gunakan filter horizon/model untuk melihat kandidat utama.",
+    st.header("Ranking Mentah (Riset)")
+    if display_mode == "Pemula":
+        st.info(
+            "Tab ini berisi ranking mentah untuk riset/analisis lanjutan -- **belum difilter status trust/edge**, "
+            "jadi tidak cocok jadi acuan langsung untuk mode Pemula. Gunakan tab **Ringkasan Harian** yang sudah "
+            "menyaring saham berdasarkan status kepercayaan (live track record + backtest walk-forward). "
+            "Ganti mode tampilan ke Trader/Audit di sidebar kalau tetap ingin membuka tab ini."
         )
-    if os.path.exists(pred_file):
-        try:
-            df_preds = clean_preview_df.copy() if os.path.getsize(pred_file) > 0 else pd.DataFrame()
-        except EmptyDataError:
-            df_preds = pd.DataFrame()
-        if not df_preds.empty:
-            ranking_mode = st.radio(
-                "Jenis Ranking",
-                ["Proyeksi Swing H+3/H+5/H+10", "Arah Harian H+1"],
-                horizontal=True,
-                help="H+1 memakai prediksi arah harian. Swing memakai proyeksi harga H+3, H+5, dan H+10.",
-            )
-            if "prediction_purpose" in df_preds.columns:
-                purpose_series = df_preds["prediction_purpose"].fillna("THREE_DAY_FORECAST").astype(str).str.upper()
-                if ranking_mode == "Arah Harian H+1":
-                    df_preds = df_preds[purpose_series == "NEXT_DAY_DIRECTION"]
-                else:
-                    df_preds = df_preds[purpose_series != "NEXT_DAY_DIRECTION"]
-            elif ranking_mode == "Arah Harian H+1":
-                df_preds = pd.DataFrame()
-            if "is_active" in df_preds.columns:
-                df_preds = df_preds[df_preds["is_active"].astype(str).str.lower().isin(["true", "1", "yes"])]
-            if df_preds.empty:
-                st.info("Belum ada data ranking untuk mode ini. Jalankan analisis terlebih dahulu.")
-                st.stop()
-            # Ambil prediksi terbaru untuk setiap saham (berdasarkan timestamp_prediction)
-            df_preds['timestamp_prediction'] = pd.to_datetime(df_preds['timestamp_prediction'])
-            if "horizon_days" not in df_preds.columns:
-                df_preds["horizon_days"] = 3
-            if "prediction_purpose" not in df_preds.columns:
-                df_preds["prediction_purpose"] = "THREE_DAY_FORECAST"
-            df_preds["horizon_days"] = pd.to_numeric(df_preds["horizon_days"], errors="coerce").fillna(3)
-            if ranking_mode == "Arah Harian H+1":
-                df_preds = df_preds[df_preds["horizon_days"].astype(int) == 1].copy()
-                if df_preds.empty:
-                    st.info("Belum ada prediksi H+1 untuk ranking harian. Jalankan analisis terlebih dahulu.")
-                    st.stop()
-            latest_preds = df_preds.sort_values('timestamp_prediction', ascending=False).drop_duplicates(
-                subset=['ticker', 'model_name', 'horizon_days', 'prediction_purpose']
-            )
-            
-            # Hitung persentase potensi pergerakan
-            for price_column in ["predicted_price", "current_price"]:
-                latest_preds[price_column] = pd.to_numeric(latest_preds.get(price_column), errors="coerce")
-            latest_preds = latest_preds.dropna(subset=["predicted_price", "current_price"]).copy()
-            latest_preds = latest_preds[latest_preds["current_price"] > 0].copy()
-            if latest_preds.empty:
-                st.info("Belum ada data harga prediksi yang valid untuk ranking mode ini.")
-                st.stop()
-            latest_preds['potential_return_pct'] = ((latest_preds['predicted_price'] - latest_preds['current_price']) / latest_preds['current_price']) * 100
-            latest_preds["prediction_purpose"] = latest_preds.get("prediction_purpose", "THREE_DAY_FORECAST")
-            latest_preds["confidence_pct"] = pd.to_numeric(latest_preds.get("confidence_pct", 60.0), errors="coerce").fillna(60.0)
-            latest_preds["horizon_days"] = pd.to_numeric(latest_preds.get("horizon_days", 3), errors="coerce").fillna(3)
+    else:
+        st.write("Menampilkan potensi kenaikan dan penurunan berdasarkan hasil prediksi model terbaru.")
+        st.warning(
+            "⚠️ Tabel di tab ini diurutkan dari **akurasi mentah/potensi return**, BELUM difilter status "
+            "trust/edge -- ticker berstatus 'JANGAN DIIKUTI' (tab Model Trust Audit) atau 'TIDAK ADA EDGE' "
+            "(tab Walk-Forward Genuine Edge) tetap bisa muncul di ranking teratas. Cek kolom 'Status Trust' "
+            "di bawah, atau pakai tab **Ringkasan Harian** kalau butuh daftar yang sudah tergate."
+        )
 
-            reliability_purpose = "NEXT_DAY_DIRECTION" if ranking_mode == "Arah Harian H+1" else "THREE_DAY_FORECAST"
-            reliability_df = get_best_model_recommendations(
-                min_evaluations=3,
-                prediction_purpose=reliability_purpose,
-            )
-            if reliability_df.empty:
-                latest_preds["historical_reliability"] = 50.0
+        pred_file = project_path("data", "tracking", "predictions_log.csv")
+        pred_status_df = load_prediction_log(pred_file)
+        clean_preview_df, prediction_audit = audit_prediction_csv(pred_file)
+        with st.expander("Audit & Pembersihan Log Prediksi", expanded=not prediction_audit.is_clean):
+            audit_col1, audit_col2, audit_col3 = st.columns(3)
+            audit_col1.metric("Total Baris", f"{prediction_audit.total_rows:,}".replace(",", "."))
+            audit_col2.metric("Baris Valid", f"{prediction_audit.valid_rows:,}".replace(",", "."))
+            audit_col3.metric("Baris Bermasalah", f"{prediction_audit.invalid_rows:,}".replace(",", "."))
+            if prediction_audit.missing_columns:
+                st.error(f"Kolom wajib hilang: {', '.join(prediction_audit.missing_columns)}")
+            elif prediction_audit.invalid_rows:
+                st.warning("Ada baris abnormal di log prediksi. Ranking otomatis mengabaikan baris ini.")
+                st.write("Ringkasan penyebab:")
+                st.dataframe(
+                    pd.DataFrame(
+                        [
+                            {"Penyebab": reason, "Jumlah": count}
+                            for reason, count in prediction_audit.invalid_reason_counts.items()
+                        ]
+                    ),
+                    width="stretch",
+                    hide_index=True,
+                )
+                st.write("Preview baris bermasalah:")
+                st.dataframe(prediction_audit.invalid_preview, width="stretch", hide_index=True)
+                if st.button("Bersihkan predictions_log.csv", type="primary"):
+                    try:
+                        backup_path, cleaned_audit = clean_prediction_csv(
+                            pred_file,
+                            backup_dir=project_path("data", "tracking", "backups"),
+                        )
+                        st.success(
+                            f"Pembersihan selesai. {cleaned_audit.invalid_rows} baris abnormal dipindahkan dari file aktif. "
+                            f"Backup dibuat di `{backup_path}`."
+                        )
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Gagal membersihkan log prediksi: {e}")
             else:
-                reliability_lookup = reliability_df.set_index(["ticker", "model_name"])["reliability_score"].to_dict()
-                latest_preds["historical_reliability"] = latest_preds.apply(
-                    lambda row: reliability_lookup.get((row["ticker"], row["model_name"]), 50.0),
+                st.success("Log prediksi bersih. Ranking memakai semua baris valid.")
+
+        if pred_status_df.empty:
+            render_feature_status("Ranking Mentah (Riset)", "BELUM LENGKAP", "Belum ada prediksi aktif.", "Jalankan analisis saham terlebih dahulu.")
+        else:
+            latest_prediction_date = pred_status_df["current_date"].dropna().astype(str).max()
+            active_prediction_count = int(pred_status_df["is_active"].sum())
+            render_feature_status(
+                "Ranking Mentah (Riset)",
+                "SIAP" if active_prediction_count else "BELUM LENGKAP",
+                f"{active_prediction_count} prediksi aktif. Tanggal terbaru: {latest_prediction_date}.",
+                "Gunakan filter horizon/model untuk melihat kandidat utama.",
+            )
+        if os.path.exists(pred_file):
+            try:
+                df_preds = clean_preview_df.copy() if os.path.getsize(pred_file) > 0 else pd.DataFrame()
+            except EmptyDataError:
+                df_preds = pd.DataFrame()
+            if not df_preds.empty:
+                ranking_mode = st.radio(
+                    "Jenis Ranking",
+                    ["Proyeksi Swing H+3/H+5/H+10", "Arah Harian H+1"],
+                    horizontal=True,
+                    help="H+1 memakai prediksi arah harian. Swing memakai proyeksi harga H+3, H+5, dan H+10.",
+                )
+                if "prediction_purpose" in df_preds.columns:
+                    purpose_series = df_preds["prediction_purpose"].fillna("THREE_DAY_FORECAST").astype(str).str.upper()
+                    if ranking_mode == "Arah Harian H+1":
+                        df_preds = df_preds[purpose_series == "NEXT_DAY_DIRECTION"]
+                    else:
+                        df_preds = df_preds[purpose_series != "NEXT_DAY_DIRECTION"]
+                elif ranking_mode == "Arah Harian H+1":
+                    df_preds = pd.DataFrame()
+                if "is_active" in df_preds.columns:
+                    df_preds = df_preds[df_preds["is_active"].astype(str).str.lower().isin(["true", "1", "yes"])]
+                if df_preds.empty:
+                    st.info("Belum ada data ranking untuk mode ini. Jalankan analisis terlebih dahulu.")
+                    st.stop()
+                # Ambil prediksi terbaru untuk setiap saham (berdasarkan timestamp_prediction)
+                df_preds['timestamp_prediction'] = pd.to_datetime(df_preds['timestamp_prediction'])
+                if "horizon_days" not in df_preds.columns:
+                    df_preds["horizon_days"] = 3
+                if "prediction_purpose" not in df_preds.columns:
+                    df_preds["prediction_purpose"] = "THREE_DAY_FORECAST"
+                df_preds["horizon_days"] = pd.to_numeric(df_preds["horizon_days"], errors="coerce").fillna(3)
+                if ranking_mode == "Arah Harian H+1":
+                    df_preds = df_preds[df_preds["horizon_days"].astype(int) == 1].copy()
+                    if df_preds.empty:
+                        st.info("Belum ada prediksi H+1 untuk ranking harian. Jalankan analisis terlebih dahulu.")
+                        st.stop()
+                latest_preds = df_preds.sort_values('timestamp_prediction', ascending=False).drop_duplicates(
+                    subset=['ticker', 'model_name', 'horizon_days', 'prediction_purpose']
+                )
+                
+                # Hitung persentase potensi pergerakan
+                for price_column in ["predicted_price", "current_price"]:
+                    latest_preds[price_column] = pd.to_numeric(latest_preds.get(price_column), errors="coerce")
+                latest_preds = latest_preds.dropna(subset=["predicted_price", "current_price"]).copy()
+                latest_preds = latest_preds[latest_preds["current_price"] > 0].copy()
+                if latest_preds.empty:
+                    st.info("Belum ada data harga prediksi yang valid untuk ranking mode ini.")
+                    st.stop()
+                latest_preds['potential_return_pct'] = ((latest_preds['predicted_price'] - latest_preds['current_price']) / latest_preds['current_price']) * 100
+                latest_preds["prediction_purpose"] = latest_preds.get("prediction_purpose", "THREE_DAY_FORECAST")
+                latest_preds["confidence_pct"] = pd.to_numeric(latest_preds.get("confidence_pct", 60.0), errors="coerce").fillna(60.0)
+                latest_preds["horizon_days"] = pd.to_numeric(latest_preds.get("horizon_days", 3), errors="coerce").fillna(3)
+
+                reliability_purpose = "NEXT_DAY_DIRECTION" if ranking_mode == "Arah Harian H+1" else "THREE_DAY_FORECAST"
+                reliability_df = get_best_model_recommendations(
+                    min_evaluations=3,
+                    prediction_purpose=reliability_purpose,
+                )
+                if reliability_df.empty:
+                    latest_preds["historical_reliability"] = 50.0
+                else:
+                    reliability_lookup = reliability_df.set_index(["ticker", "model_name"])["reliability_score"].to_dict()
+                    latest_preds["historical_reliability"] = latest_preds.apply(
+                        lambda row: reliability_lookup.get((row["ticker"], row["model_name"]), 50.0),
+                        axis=1,
+                    )
+
+                # Status Trust/Edge dihitung fresh di sini (bukan dipinjam dari tab
+                # lain) supaya tab ini tetap benar berdiri sendiri kalau urutan tab
+                # berubah. Dipakai untuk menutup gap: tab ini sebelumnya bisa
+                # menampilkan ticker "JANGAN DIIKUTI" di posisi #1 tanpa peringatan.
+                ranking_trust_audit_df = get_model_trust_audit(
+                    prediction_purpose=reliability_purpose,
+                    min_evaluations=3,
+                )
+                ranking_trust_lookup = {}
+                if not ranking_trust_audit_df.empty:
+                    ranking_trust_lookup = ranking_trust_audit_df.set_index(["ticker", "model_name"])["status_trust"].to_dict()
+                ranking_edge_screening = load_genuine_edge_screening()
+                ranking_edge_lookup = {}
+                if ranking_edge_screening is not None:
+                    edge_field = "has_genuine_edge_h1" if ranking_mode == "Arah Harian H+1" else "has_any_genuine_edge"
+                    ranking_edge_lookup = {r["ticker"]: bool(r.get(edge_field, False)) for r in ranking_edge_screening.get("results", [])}
+                latest_preds["Status Trust"] = latest_preds.apply(
+                    lambda row: ranking_trust_lookup.get((row["ticker"], row["model_name"]), "PERLU DATA LAGI"),
                     axis=1,
                 )
-            latest_preds["ranking_score"] = (
-                latest_preds["potential_return_pct"]
-                * (latest_preds["confidence_pct"] / 100.0)
-                * (latest_preds["historical_reliability"] / 100.0)
-            )
-            
-            horizon_options = sorted(latest_preds["horizon_days"].dropna().astype(int).unique().tolist())
-            selected_horizon = st.selectbox(
-                "Horizon Ranking",
-                options=horizon_options,
-                index=horizon_options.index(3) if 3 in horizon_options else 0,
-                format_func=lambda value: f"H+{value}",
-                disabled=ranking_mode == "Arah Harian H+1",
-            )
-            latest_preds = latest_preds[latest_preds["horizon_days"].astype(int) == int(selected_horizon)]
-            if latest_preds.empty:
-                st.info(f"Belum ada prediksi untuk horizon H+{selected_horizon}. Jalankan analisis terlebih dahulu.")
-                st.stop()
+                latest_preds["Edge Nyata (Walk-Forward)"] = latest_preds["ticker"].map(
+                    lambda t: ("Ya" if ranking_edge_lookup.get(t, False) else "Tidak") if ranking_edge_lookup else "Belum discreening"
+                )
+                latest_preds["ranking_score"] = (
+                    latest_preds["potential_return_pct"]
+                    * (latest_preds["confidence_pct"] / 100.0)
+                    * (latest_preds["historical_reliability"] / 100.0)
+                )
+                
+                horizon_options = sorted(latest_preds["horizon_days"].dropna().astype(int).unique().tolist())
+                selected_horizon = st.selectbox(
+                    "Horizon Ranking",
+                    options=horizon_options,
+                    index=horizon_options.index(3) if 3 in horizon_options else 0,
+                    format_func=lambda value: f"H+{value}",
+                    disabled=ranking_mode == "Arah Harian H+1",
+                )
+                latest_preds = latest_preds[latest_preds["horizon_days"].astype(int) == int(selected_horizon)]
+                if latest_preds.empty:
+                    st.info(f"Belum ada prediksi untuk horizon H+{selected_horizon}. Jalankan analisis terlebih dahulu.")
+                    st.stop()
 
-            # Filter model
-            models_available = latest_preds['model_name'].unique()
-            selected_model = st.selectbox("Pilih Model Prediksi", options=models_available, index=0)
-            
-            filtered_preds = latest_preds[latest_preds['model_name'] == selected_model].copy()
-            sync_ranking_ticker = st.checkbox(
-                f"Tampilkan hanya ticker aktif ({ticker})",
-                value=bool(not use_all_tickers and ticker and ticker in filtered_preds["ticker"].astype(str).str.upper().values),
-                disabled=use_all_tickers or not bool(ticker),
-            )
-            if sync_ranking_ticker and ticker:
-                filtered_preds = filtered_preds[filtered_preds["ticker"].astype(str).str.upper() == ticker]
-            
-            if not filtered_preds.empty:
-                col1, col2 = st.columns(2)
+                # Filter model
+                models_available = latest_preds['model_name'].unique()
+                selected_model = st.selectbox("Pilih Model Prediksi", options=models_available, index=0)
                 
-                with col1:
-                    st.subheader("Top Ranking Beli")
-                    top_gainers = filtered_preds.sort_values(by='ranking_score', ascending=False).head(10)
-                    display_gainers = top_gainers[['ticker', 'current_price', 'predicted_price', 'potential_return_pct', 'confidence_pct', 'historical_reliability', 'ranking_score', 'target_date']].copy()
-                    display_gainers.rename(columns={
-                        'ticker': 'Saham',
-                        'current_price': 'Harga Saat Prediksi',
-                        'predicted_price': 'Harga Prediksi',
-                        'potential_return_pct': 'Potensi Kenaikan (%)',
-                        'confidence_pct': 'Confidence (%)',
-                        'historical_reliability': 'Reliability Historis',
-                        'ranking_score': 'Ranking Score',
-                        'target_date': 'Tanggal Target'
-                    }, inplace=True)
-                    st.dataframe(display_gainers.style.format({
-                        "Harga Saat Prediksi": "{:,.0f}",
-                        "Harga Prediksi": "{:,.0f}",
-                        "Potensi Kenaikan (%)": "{:+.2f}%",
-                        "Confidence (%)": "{:.2f}%",
-                        "Reliability Historis": "{:.2f}",
-                        "Ranking Score": "{:+.2f}",
-                    }), width="stretch")
+                filtered_preds = latest_preds[latest_preds['model_name'] == selected_model].copy()
+                sync_ranking_ticker = st.checkbox(
+                    f"Tampilkan hanya ticker aktif ({ticker})",
+                    value=bool(not use_all_tickers and ticker and ticker in filtered_preds["ticker"].astype(str).str.upper().values),
+                    disabled=use_all_tickers or not bool(ticker),
+                )
+                if sync_ranking_ticker and ticker:
+                    filtered_preds = filtered_preds[filtered_preds["ticker"].astype(str).str.upper() == ticker]
                 
-                with col2:
-                    st.subheader("Top Potensi Penurunan")
-                    top_losers = filtered_preds.sort_values(by='potential_return_pct', ascending=True).head(10)
-                    display_losers = top_losers[['ticker', 'current_price', 'predicted_price', 'potential_return_pct', 'target_date']].copy()
-                    display_losers.rename(columns={
-                        'ticker': 'Saham',
-                        'current_price': 'Harga Saat Prediksi',
-                        'predicted_price': 'Harga Prediksi',
-                        'potential_return_pct': 'Potensi Penurunan (%)',
-                        'target_date': 'Tanggal Target'
-                    }, inplace=True)
-                    st.dataframe(display_losers.style.format({
-                        "Harga Saat Prediksi": "{:,.0f}",
-                        "Harga Prediksi": "{:,.0f}",
-                        "Potensi Penurunan (%)": "{:+.2f}%"
-                    }), width="stretch")
+                if not filtered_preds.empty:
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.subheader("Top Ranking Beli")
+                        top_gainers = filtered_preds.sort_values(by='ranking_score', ascending=False).head(10)
+                        display_gainers = top_gainers[['ticker', 'current_price', 'predicted_price', 'potential_return_pct', 'confidence_pct', 'historical_reliability', 'ranking_score', 'Status Trust', 'Edge Nyata (Walk-Forward)', 'target_date']].copy()
+                        display_gainers.rename(columns={
+                            'ticker': 'Saham',
+                            'current_price': 'Harga Saat Prediksi',
+                            'predicted_price': 'Harga Prediksi',
+                            'potential_return_pct': 'Potensi Kenaikan (%)',
+                            'confidence_pct': 'Confidence (%)',
+                            'historical_reliability': 'Reliability Historis',
+                            'ranking_score': 'Ranking Score',
+                            'target_date': 'Tanggal Target'
+                        }, inplace=True)
+                        untrusted_in_top = int((display_gainers['Status Trust'] == 'JANGAN DIIKUTI').sum())
+                        if untrusted_in_top:
+                            st.error(
+                                f"{untrusted_in_top} dari 10 ranking teratas berstatus 'JANGAN DIIKUTI' -- "
+                                "jangan eksekusi tanpa cek ulang tab Model Trust Audit."
+                            )
+                        st.dataframe(display_gainers.style.format({
+                            "Harga Saat Prediksi": "{:,.0f}",
+                            "Harga Prediksi": "{:,.0f}",
+                            "Potensi Kenaikan (%)": "{:+.2f}%",
+                            "Confidence (%)": "{:.2f}%",
+                            "Reliability Historis": "{:.2f}",
+                            "Ranking Score": "{:+.2f}",
+                        }), width="stretch")
+                    
+                    with col2:
+                        st.subheader("Top Potensi Penurunan")
+                        top_losers = filtered_preds.sort_values(by='potential_return_pct', ascending=True).head(10)
+                        display_losers = top_losers[['ticker', 'current_price', 'predicted_price', 'potential_return_pct', 'target_date']].copy()
+                        display_losers.rename(columns={
+                            'ticker': 'Saham',
+                            'current_price': 'Harga Saat Prediksi',
+                            'predicted_price': 'Harga Prediksi',
+                            'potential_return_pct': 'Potensi Penurunan (%)',
+                            'target_date': 'Tanggal Target'
+                        }, inplace=True)
+                        st.dataframe(display_losers.style.format({
+                            "Harga Saat Prediksi": "{:,.0f}",
+                            "Harga Prediksi": "{:,.0f}",
+                            "Potensi Penurunan (%)": "{:+.2f}%"
+                        }), width="stretch")
+                else:
+                    st.info(f"Belum ada data prediksi terbaru untuk model {selected_model}.")
             else:
-                st.info(f"Belum ada data prediksi terbaru untuk model {selected_model}.")
+                st.info("File log prediksi kosong. Silakan jalankan analisis terlebih dahulu.")
         else:
-            st.info("File log prediksi kosong. Silakan jalankan analisis terlebih dahulu.")
-    else:
-        st.warning("Belum ada data prediksi yang disimpan. Jalankan prediksi Global Model dari tab Workflow Harian atau CLI global.")
+            st.warning("Belum ada data prediksi yang disimpan. Jalankan prediksi Global Model dari tab Workflow Harian atau CLI global.")
 
 
 with tab_sentiment:
@@ -4120,6 +4396,29 @@ with tab_sentiment:
         st.write(f"**Dataset:** `{engine_status['dataset_path']}`")
         st.write(f"**Dataset tersedia:** {'Ya' if engine_status['dataset_available'] else 'Tidak'}")
         st.caption("Jika dataset tugas NLP tersedia, dashboard memakai model ML. Jika tidak tersedia, sistem otomatis memakai kamus sentimen lokal.")
+        holdout = engine_status.get("holdout_evaluation")
+        if holdout:
+            st.write(
+                f"**Akurasi held-out (test {holdout['n_test']} baris, train {holdout['n_train']} baris):** "
+                f"{holdout['accuracy_pct']}%"
+            )
+            f1_text = ", ".join(f"{label}: {score}" for label, score in holdout["f1_per_class"].items())
+            st.caption(f"F1 per kelas (data test, bukan data latih): {f1_text}")
+            st.caption(
+                "Kelas dengan data test sedikit (mis. NEGATIVE) wajar punya F1 kurang stabil -- "
+                "jangan diperlakukan sama percaya dirinya dengan kelas yang datanya banyak."
+            )
+        elif engine_status.get("holdout_evaluation_note"):
+            st.caption(f"Validasi akurasi belum tersedia: {engine_status['holdout_evaluation_note']}")
+
+        st.divider()
+        st.caption(
+            "Perbandingan robust engine sentimen (TF-IDF+SVM produksi vs 3 alternatif berbasis model bahasa "
+            "pretrained, diuji 5 split acak) dipindahkan keluar dari dashboard -- alat riset, bukan kebutuhan "
+            "pemantauan harian, dan butuh dependency berat (`transformers`+`torch`, unduhan model ~500MB-1GB). "
+            "Jalankan manual dari terminal: `python scripts/compare_sentiment_engines_cli.py`."
+        )
+
         local_dataset_path = get_local_sentiment_dataset_path()
         st.write(f"**Dataset lokal AI Trading:** `{local_dataset_path}`")
         if st.button("Bangun Dataset Sentimen Lokal", key="build_local_sentiment_dataset"):
@@ -4267,16 +4566,77 @@ with tab_sentiment:
 
     with auto_news_tab:
         st.caption("Mengambil berita terbaru dari Google News RSS Indonesia, lalu mencoba membaca isi artikelnya untuk analisis sentimen.")
+
+        st.subheader("1. Cari Kata Kunci Sentimen Otomatis (Gemini AI)")
+        st.caption(
+            "Langkah opsional SEBELUM mengisi Ticker & Query di bawah -- minta Gemini AI mencari ticker mana "
+            f"dari {len(tickers)} saham di config/stocks.yaml yang paling relevan untuk analisis sentimen pasar "
+            "Indonesia saat ini, lengkap dengan saran query pencarian beritanya. Bukan pengganti langkah 2 di "
+            "bawah, cuma bantu mengisinya otomatis."
+        )
+        gemini_status = check_gemini_status()
+        if not gemini_status["enabled"] or not gemini_status["ok"]:
+            st.caption(f"⚪ {gemini_status['message']} Isi `GEMINI_API_KEY` di file `.env` untuk mengaktifkan (lihat `.env.example`).")
+        else:
+            st.caption(f"🟢 {gemini_status['message']}")
+            gemini_col1, gemini_col2 = st.columns([1, 2])
+            gemini_top_n = gemini_col1.number_input(
+                "Jumlah ticker disarankan",
+                min_value=1,
+                max_value=15,
+                value=5,
+                step=1,
+                key="gemini_keyword_top_n",
+            )
+            gemini_search_clicked = gemini_col2.button(
+                "🔍 Cari Kata Kunci dengan Gemini AI",
+                key="gemini_search_keywords",
+                type="primary",
+                disabled=not sentiment_online_enabled,
+            )
+            if not sentiment_online_enabled:
+                st.caption("Nonaktif -- aktifkan mode online (`AI_TRADING_EXTERNAL_SERVICES=true` di `.env` + update harga online tidak dimatikan) dulu.")
+
+            if gemini_search_clicked:
+                with st.spinner("Meminta Gemini AI mencari sentimen pasar saham Indonesia terkini..."):
+                    st.session_state["gemini_keyword_suggestion"] = suggest_sentiment_keywords(tickers, top_n=int(gemini_top_n))
+
+            gemini_suggestion = st.session_state.get("gemini_keyword_suggestion")
+            if gemini_suggestion:
+                if gemini_suggestion["warning"]:
+                    st.warning(gemini_suggestion["warning"])
+                if gemini_suggestion["error"]:
+                    st.error(gemini_suggestion["error"])
+                    if gemini_suggestion["raw_response"]:
+                        with st.expander("Detail respons mentah (debug)"):
+                            st.text(gemini_suggestion["raw_response"])
+                elif gemini_suggestion["suggestions"]:
+                    grounded_note = "hasil pencarian live" if gemini_suggestion["grounded"] else "dari pengetahuan model, bukan pencarian live"
+                    st.success(f"{len(gemini_suggestion['suggestions'])} kandidat ticker ditemukan ({grounded_note}).")
+                    for idx, row in enumerate(gemini_suggestion["suggestions"]):
+                        sugg_col1, sugg_col2 = st.columns([5, 1])
+                        sugg_col1.markdown(f"**{row['ticker']}** -- {row['reason']}  \nQuery: `{row['query']}`")
+                        if sugg_col2.button("Pakai", key=f"use_gemini_suggestion_{idx}"):
+                            st.session_state["auto_news_ticker"] = row["ticker"]
+                            st.session_state["auto_news_query"] = row["query"]
+                            st.rerun()
+
+        st.divider()
+        st.subheader("2. Ambil Berita untuk Ticker Terpilih")
         col_ticker, col_limit = st.columns([2, 1])
+        # setdefault (bukan value= langsung) supaya tidak konflik dengan
+        # session_state yang di-set tombol "Pakai" di langkah 1 (mengisi
+        # auto_news_ticker/auto_news_query otomatis) -- Streamlit memperingatkan
+        # kalau widget punya value= SEKALIGUS key yang sudah di-set manual.
+        st.session_state.setdefault("auto_news_ticker", ticker if "ticker" in locals() else "BBRI")
         news_ticker = col_ticker.text_input(
             "Ticker untuk pencarian berita",
-            value=ticker if "ticker" in locals() else "BBRI",
             key="auto_news_ticker",
         ).strip().upper()
         news_limit = col_limit.number_input("Jumlah headline", min_value=1, max_value=30, value=10, step=1)
+        st.session_state.setdefault("auto_news_query", f"{news_ticker} saham" if news_ticker else "saham Indonesia")
         news_query = st.text_input(
             "Query pencarian",
-            value=f"{news_ticker} saham" if news_ticker else "saham Indonesia",
             key="auto_news_query",
         )
         news_include_article_body = st.checkbox(
@@ -4423,12 +4783,10 @@ with tab_accuracy:
             evaluate_pending_predictions()
             st.success("Evaluasi selesai!")
             
-    min_samples = st.number_input(
-        "Minimal evaluasi untuk model dianggap cukup reliabel",
-        min_value=1,
-        max_value=50,
-        value=3,
-        step=1,
+    min_samples = global_min_evaluations_audit
+    st.caption(
+        f"Minimal evaluasi untuk model dianggap cukup reliabel: **{int(min_samples)}** "
+        "(atur di sidebar 'Pengaturan Sensitivitas & Tampilan')."
     )
 
     accuracy_view_options = {
@@ -4470,6 +4828,7 @@ with tab_accuracy:
         prediction_purpose=accuracy_purpose,
         min_evaluations=int(min_samples),
     )
+    wf_edge_df = load_latest_walk_forward_edge_status()
     prediction_status_df = summarize_prediction_status(prediction_purpose=accuracy_purpose)
     liquidity_tier_df = build_liquidity_tier_table(tuple(tickers))
     summary_df = add_liquidity_tier(summary_df, liquidity_tier_df)
@@ -4535,8 +4894,10 @@ with tab_accuracy:
             }), width="stretch")
 
             overall_chart_df = overall_daily_recap_df.copy()
-            if not overall_chart_df.empty:
-                st.line_chart(overall_chart_df, x="evaluation_day", y="direction_accuracy_pct", color="model_name")
+            render_interactive_accuracy_trend(
+                overall_chart_df, "evaluation_day", "direction_accuracy_pct", "model_name",
+                title="Tren Akurasi Arah per Model",
+            )
 
     if not summary_df.empty:
         sync_accuracy_ticker = st.checkbox(
@@ -4549,6 +4910,7 @@ with tab_accuracy:
         view_recommendations_df = recommendations_df.copy()
         view_trading_leaderboard_df = trading_leaderboard_df.copy()
         view_trust_audit_df = trust_audit_df.copy()
+        view_wf_edge_df = wf_edge_df.copy()
         available_tiers = ["SEMUA"]
         if "liquidity_tier" in view_summary_df.columns:
             available_tiers += sorted(view_summary_df["liquidity_tier"].dropna().unique().tolist())
@@ -4576,21 +4938,86 @@ with tab_accuracy:
             view_trust_audit_df = view_trust_audit_df[view_trust_audit_df["ticker"].astype(str).str.upper() == ticker]
             if not view_daily_recap_df.empty:
                 view_daily_recap_df = view_daily_recap_df[view_daily_recap_df["ticker"].astype(str).str.upper() == ticker]
+            if not view_wf_edge_df.empty:
+                view_wf_edge_df = view_wf_edge_df[view_wf_edge_df["ticker"].astype(str).str.upper() == ticker]
 
-        rec_tab, trust_tab, high_pred_tab, leaderboard_tab, tier_tab, calibration_tab, summary_tab, daily_tab = st.tabs([
-            "Rekomendasi Model per Saham",
+        st.subheader("📋 Ringkasan Kepercayaan Model -- mulai di sini")
+        st.caption(
+            "Menggabungkan status trust audit (track record live, dari tab 'Model Trust Audit') dengan genuine "
+            "edge walk-forward (backtest, dari tab 'Walk-Forward Genuine Edge') per ticker. Tab-tab di bawah "
+            "berisi detail lengkapnya -- pakai ringkasan ini kalau cuma ingin tahu ticker mana yang paling bisa dipercaya."
+        )
+        if view_trust_audit_df.empty and view_wf_edge_df.empty:
+            st.info("Belum ada data trust audit maupun walk-forward untuk ditampilkan. Jalankan analisis dan evaluasi akurasi terlebih dahulu.")
+        else:
+            best_trust_by_ticker = pd.DataFrame(columns=["ticker", "status_trust", "alasan"])
+            if not view_trust_audit_df.empty:
+                best_trust_by_ticker = view_trust_audit_df.drop_duplicates(subset=["ticker"], keep="first")[
+                    ["ticker", "status_trust", "alasan"]
+                ]
+            trust_lookup_summary = best_trust_by_ticker.set_index("ticker")["status_trust"].to_dict()
+            trust_reason_summary = best_trust_by_ticker.set_index("ticker")["alasan"].to_dict()
+            edge_lookup_summary = {}
+            if not view_wf_edge_df.empty and "has_genuine_edge_h1" in view_wf_edge_df.columns:
+                edge_lookup_summary = view_wf_edge_df.set_index("ticker")["has_genuine_edge_h1"].to_dict()
+
+            summary_tickers = sorted(set(trust_lookup_summary.keys()) | set(edge_lookup_summary.keys()))
+            badge_rows = []
+            for t in summary_tickers:
+                status = trust_lookup_summary.get(t)
+                has_edge = edge_lookup_summary.get(t) if t in edge_lookup_summary else None
+                has_edge = bool(has_edge) if has_edge is not None and not pd.isna(has_edge) else None
+                badge, reason = compute_unified_trust_badge(status, has_edge)
+                badge_rows.append({
+                    "Saham": t,
+                    "Verifikasi": badge,
+                    "Trust Live": status or "Belum ada data",
+                    "Genuine Edge (Walk-Forward H+1)": "Ada" if has_edge is True else ("Tidak ada" if has_edge is False else "Belum discreening"),
+                    "Catatan": reason or trust_reason_summary.get(t, ""),
+                })
+            badge_summary_df = pd.DataFrame(badge_rows)
+            b1, b2, b3, b4 = st.columns(4)
+            b1.metric("✅ Terverifikasi Ganda", int((badge_summary_df["Verifikasi"] == "✅ Terverifikasi Ganda").sum()))
+            b2.metric("⚠️ Live OK Saja", int(badge_summary_df["Verifikasi"].str.startswith("⚠️ Live OK").sum()))
+            b3.metric("⚠️ Backtest OK Saja", int((badge_summary_df["Verifikasi"] == "⚠️ Backtest OK, Live Kurang").sum()))
+            b4.metric("❌ Belum Lolos", int((badge_summary_df["Verifikasi"] == "❌ Belum Lolos Verifikasi").sum()))
+            st.dataframe(badge_summary_df, width="stretch", hide_index=True)
+        st.divider()
+        st.caption(
+            "3 tab pertama untuk keputusan sehari-hari. Tab '🔧 Detail Teknis Lainnya' berisi 6 sub-tab "
+            "analisis mendalam (Prediksi Akurasi Tinggi, Leaderboard, Tier, Kalibrasi, Ringkasan, Drill-down) "
+            "-- dikumpulkan di satu tab supaya tidak memenuhi bar tab utama."
+        )
+
+        trust_tab, rec_tab, wf_edge_tab, detail_tab = st.tabs([
             "Model Trust Audit",
-            "Prediksi Akurasi Tinggi",
-            "Leaderboard Trading Model",
-            "Evaluasi per Tier",
-            "Kalibrasi Confidence",
-            "Ringkasan Akurasi Model",
-            "Drill-down Rekap Harian per Saham",
+            "Rekomendasi Model per Saham (Riset)",
+            "Walk-Forward Genuine Edge",
+            "🔧 Detail Teknis Lainnya",
         ])
 
         with rec_tab:
             st.write("Model terbaik dipilih berdasarkan akurasi arah, error margin, dan jumlah sample evaluasi.")
-            st.dataframe(view_recommendations_df.style.format({
+            rec_display_df = view_recommendations_df.copy()
+            if not view_trust_audit_df.empty and "status_trust" in view_trust_audit_df.columns:
+                rec_trust_lookup = view_trust_audit_df.set_index(["ticker", "model_name"])["status_trust"].to_dict()
+                rec_display_df["status_trust"] = rec_display_df.apply(
+                    lambda row: rec_trust_lookup.get((row["ticker"], row["model_name"]), "PERLU DATA LAGI"),
+                    axis=1,
+                )
+                untrusted_rec_count = int((rec_display_df["status_trust"] == "JANGAN DIIKUTI").sum())
+                if untrusted_rec_count:
+                    st.warning(
+                        f"{untrusted_rec_count} baris di tabel ini berstatus 'JANGAN DIIKUTI' pada tab Model Trust "
+                        "Audit di sebelah (edge_vs_baseline_pct belum lolos ambang) -- urutan di sini murni akurasi "
+                        "mentah, belum tergate trust/edge. Cek kolom 'status_trust' sebelum menindaklanjuti."
+                    )
+            else:
+                st.caption(
+                    "⚠️ Tabel ini belum tergate status trust/edge (lihat tab 'Model Trust Audit' di sebelah) -- "
+                    "urutan di sini murni akurasi mentah historis."
+                )
+            st.dataframe(rec_display_df.style.format({
                 "reliability_score": "{:.2f}",
                 "direction_accuracy_pct": "{:.2f}%",
                 "precision_naik_pct": "{:.2f}%",
@@ -4601,7 +5028,9 @@ with tab_accuracy:
 
         with trust_tab:
             st.write(
-                "Audit ini merangkum apakah model per saham sudah layak dijadikan acuan trading berdasarkan sample, akurasi, profit factor, kalibrasi, dan proxy walk-forward."
+                "Audit ini merangkum apakah model per saham sudah layak dijadikan acuan trading berdasarkan sample, "
+                "akurasi, profit factor, kalibrasi, dan edge nyata terhadap baseline tebak-mayoritas naif "
+                "(bukan sekadar akurasi mentah, yang bisa menyesatkan kalau periode evaluasi kebetulan searah tren pasar)."
             )
             if view_trust_audit_df.empty:
                 st.info("Belum ada data trust audit untuk jenis evaluasi ini.")
@@ -4613,9 +5042,10 @@ with tab_accuracy:
                 t3.metric("Jangan Diikuti", int(trust_counts.get("JANGAN DIIKUTI", 0)))
                 st.dataframe(view_trust_audit_df.style.format({
                     "direction_accuracy_pct": "{:.2f}%",
+                    "baseline_majority_accuracy_pct": "{:.2f}%",
+                    "edge_vs_baseline_pct": "{:+.2f}pp",
                     "profit_factor": "{:.2f}",
                     "calibration_gap_pct": "{:+.2f}%",
-                    "walk_forward_score": "{:.2f}%",
                     "win_rate_pct": "{:.2f}%",
                     "avg_strategy_return_pct": "{:+.2f}%",
                     "trading_score": "{:.2f}",
@@ -4623,748 +5053,245 @@ with tab_accuracy:
                     "avg_return_after_naik_pct": "{:+.2f}%",
                 }), width="stretch", hide_index=True)
 
-        with high_pred_tab:
-            st.write("Menampilkan prediksi terbaru dari model/saham yang historisnya paling akurat pada jenis evaluasi yang dipilih.")
-            hp_col1, hp_col2 = st.columns(2)
-            min_high_accuracy = hp_col1.number_input(
-                "Minimal akurasi historis (%)",
-                min_value=0.0,
-                max_value=100.0,
-                value=60.0,
-                step=5.0,
+        with wf_edge_tab:
+            st.write(
+                "Ini hasil backtest walk-forward (bukan track record live seperti tab Model Trust Audit): tiap ticker "
+                "diuji ulang lewat train/test bergulir dengan purge gap, lalu akurasinya dibandingkan ke baseline "
+                "tebak-mayoritas pada fold yang sama. Sebelumnya angka ini cuma tercetak di console saat menjalankan "
+                "analisis dan tidak pernah tersimpan/tampil di dashboard."
             )
-            min_high_samples = hp_col2.number_input(
-                "Minimal jumlah evaluasi",
-                min_value=1,
-                max_value=100,
-                value=int(min_samples),
-                step=1,
+            st.warning(
+                "⚠️ Angka di tab ini berasal dari run analisis SATU-TICKER (data/jobs/) dan belum dikoreksi "
+                "multiple-testing (FDR) -- menguji ambang effect-size tetap ke banyak ticker tanpa koreksi ini bisa "
+                "meloloskan beberapa ticker murni karena varians sampel, bukan edge sungguhan. Verdict yang SUDAH "
+                "dikoreksi FDR lintas seluruh universe ticker ada di gate 'Ringkasan Harian'/badge 'Terverifikasi "
+                "Ganda' (bersumber dari `data/edge_screening_status.json`, dibuat lewat "
+                "`python scripts/screen_genuine_edge.py`) -- itu acuan untuk keputusan trading, bukan tabel di bawah ini."
             )
-            high_accuracy_predictions_df = build_high_accuracy_prediction_view(
-                view_trading_leaderboard_df,
-                prediction_purpose=accuracy_purpose,
-                min_accuracy=float(min_high_accuracy),
-                min_samples=int(min_high_samples),
-            )
-            if high_accuracy_predictions_df.empty:
-                st.info("Belum ada prediksi terbaru dari model yang memenuhi batas akurasi dan jumlah evaluasi.")
+            if view_wf_edge_df.empty:
+                st.info(
+                    "Belum ada data. Jalankan analisis (tab Workflow Harian / Analisis Manual) minimal sekali -- "
+                    "hasilnya otomatis tersimpan di data/jobs/analysis_<job_id>.json dan akan muncul di sini."
+                )
             else:
-                st.dataframe(high_accuracy_predictions_df.style.format({
-                    "predicted_return_pct": "{:+.2f}%",
-                    "confidence_pct": "{:.2f}%",
-                    "direction_accuracy_pct": "{:.2f}%",
-                    "win_rate_pct": "{:.2f}%",
-                    "profit_factor": "{:.2f}",
-                    "trading_score": "{:.2f}",
-                }), width="stretch", hide_index=True)
+                only_genuine_edge_h1 = st.checkbox(
+                    "Tampilkan hanya ticker dengan edge nyata H+1 (has_genuine_edge_h1)",
+                    value=False,
+                )
+                edge_display_df = view_wf_edge_df.copy()
+                if only_genuine_edge_h1 and "has_genuine_edge_h1" in edge_display_df.columns:
+                    edge_display_df = edge_display_df[edge_display_df["has_genuine_edge_h1"] == True]  # noqa: E712
 
-        with leaderboard_tab:
-            st.write("Leaderboard ini memakai accuracy, error margin, proxy return, win rate, dan profit factor per ticker/model.")
-            if view_trading_leaderboard_df.empty:
-                st.info("Belum ada data leaderboard untuk jenis evaluasi ini.")
-            else:
-                st.dataframe(view_trading_leaderboard_df.style.format({
-                    "direction_accuracy_pct": "{:.2f}%",
-                    "avg_error_margin_pct": "{:.2f}%",
-                    "avg_strategy_return_pct": "{:+.2f}%",
-                    "total_strategy_return_pct": "{:+.2f}%",
-                    "win_rate_pct": "{:.2f}%",
-                    "precision_naik_pct": "{:.2f}%",
-                    "avg_return_after_naik_pct": "{:+.2f}%",
-                    "profit_factor": "{:.2f}",
-                    "trading_score": "{:.2f}",
-                }), width="stretch")
+                e1, e2, e3, e4 = st.columns(4)
+                e1.metric("Edge nyata H+1", int(view_wf_edge_df.get("has_genuine_edge_h1", pd.Series(dtype=bool)).sum()))
+                e2.metric("Edge nyata H+3", int(view_wf_edge_df.get("has_genuine_edge_h3", pd.Series(dtype=bool)).sum()))
+                e3.metric("Edge nyata H+5", int(view_wf_edge_df.get("has_genuine_edge_h5", pd.Series(dtype=bool)).sum()))
+                e4.metric("Edge nyata H+10", int(view_wf_edge_df.get("has_genuine_edge_h10", pd.Series(dtype=bool)).sum()))
 
-        with tier_tab:
-            st.write("Ringkasan ini membantu melihat apakah model lebih dapat dipercaya pada saham likuid dibanding saham kurang likuid.")
-            if view_trading_leaderboard_df.empty or "liquidity_tier" not in view_trading_leaderboard_df.columns:
-                st.info("Belum ada data tier likuiditas yang bisa diringkas.")
-            else:
-                tier_eval_df = (
-                    view_trading_leaderboard_df.dropna(subset=["liquidity_tier"])
-                    .groupby("liquidity_tier", as_index=False)
-                    .agg(
-                        jumlah_model=("model_name", "count"),
-                        total_evaluations=("total_evaluations", "sum"),
-                        avg_direction_accuracy_pct=("direction_accuracy_pct", "mean"),
-                        avg_precision_naik_pct=("precision_naik_pct", "mean"),
-                        avg_return_after_naik_pct=("avg_return_after_naik_pct", "mean"),
-                        avg_profit_factor=("profit_factor", "mean"),
-                        avg_trading_score=("trading_score", "mean"),
+                edge_table_columns = [
+                    "ticker", "computed_at",
+                    "walk_forward_h1_accuracy_pct", "walk_forward_h1_baseline_majority_pct",
+                    "walk_forward_h1_edge_pct", "has_genuine_edge_h1",
+                    "walk_forward_h3_edge_mae_pct", "has_genuine_edge_h3",
+                    "walk_forward_h5_edge_mae_pct", "has_genuine_edge_h5",
+                    "walk_forward_h10_edge_mae_pct", "has_genuine_edge_h10",
+                ]
+                available_columns = [c for c in edge_table_columns if c in edge_display_df.columns]
+                st.dataframe(
+                    edge_display_df[available_columns].sort_values("walk_forward_h1_edge_pct", ascending=False).style.format({
+                        "walk_forward_h1_accuracy_pct": "{:.1f}%",
+                        "walk_forward_h1_baseline_majority_pct": "{:.1f}%",
+                        "walk_forward_h1_edge_pct": "{:+.1f}pp",
+                        "walk_forward_h3_edge_mae_pct": "{:+.2f}pp",
+                        "walk_forward_h5_edge_mae_pct": "{:+.2f}pp",
+                        "walk_forward_h10_edge_mae_pct": "{:+.2f}pp",
+                    }, na_rep="-"),
+                    width="stretch",
+                    hide_index=True,
+                )
+
+                st.divider()
+                st.subheader("Kenapa Model Memprediksi Ini? (XAI / SHAP)")
+                st.caption(
+                    "Kontribusi tiap fitur terhadap prediksi arah H+1 dan proyeksi return H+3 untuk hari data terakhir "
+                    "yang dianalisis -- bukan rata-rata umum, tapi alasan spesifik untuk prediksi ticker ini."
+                )
+                xai_ticker_options = sorted(view_wf_edge_df["ticker"].astype(str).str.upper().unique().tolist())
+                if xai_ticker_options:
+                    default_index = xai_ticker_options.index(ticker) if ticker in xai_ticker_options else 0
+                    xai_selected_ticker = st.selectbox(
+                        "Pilih ticker untuk dijelaskan", options=xai_ticker_options, index=default_index, key="xai_ticker_select"
                     )
-                    .sort_values("liquidity_tier")
-                )
-                st.dataframe(tier_eval_df.style.format({
-                    "avg_direction_accuracy_pct": "{:.2f}%",
-                    "avg_precision_naik_pct": "{:.2f}%",
-                    "avg_return_after_naik_pct": "{:+.2f}%",
-                    "avg_profit_factor": "{:.2f}",
-                    "avg_trading_score": "{:.2f}",
-                }), width="stretch", hide_index=True)
+                    xai_row = view_wf_edge_df[view_wf_edge_df["ticker"].astype(str).str.upper() == xai_selected_ticker]
+                    if not xai_row.empty:
+                        xai_row = xai_row.iloc[0]
+                        xai_col1, xai_col2 = st.columns(2)
+                        for col, key, title in (
+                            (xai_col1, "xai_direction_h1", "Arah H+1 (NAIK/TURUN)"),
+                            (xai_col2, "xai_return_h3", "Proyeksi Return H+3"),
+                        ):
+                            with col:
+                                st.markdown(f"**{title}**")
+                                explanation = xai_row.get(key)
+                                if not isinstance(explanation, dict) or not explanation.get("available"):
+                                    reason = explanation.get("reason") if isinstance(explanation, dict) else "Data tidak tersedia."
+                                    st.caption(f"Penjelasan tidak tersedia: {reason}")
+                                    continue
+                                feat_df = pd.DataFrame(explanation["top_features"])
+                                render_interactive_contribution_bar(feat_df, title=title)
+                                st.dataframe(
+                                    feat_df[["feature", "value", "contribution", "direction"]].style.format({
+                                        "value": "{:.4g}",
+                                        "contribution": "{:+.4f}",
+                                    }),
+                                    width="stretch",
+                                    hide_index=True,
+                                )
 
-        with calibration_tab:
-            st.write("Kalibrasi membandingkan rata-rata confidence model dengan akurasi aktual pada bucket confidence yang sama.")
-            if calibration_summary_df.empty:
-                st.info("Belum cukup data confidence yang sudah dievaluasi untuk membuat ringkasan kalibrasi.")
+        with detail_tab:
+            if display_mode == "Pemula":
+                st.info(
+                    "6 sub-tab analisis mendalam di sini untuk audit/riset (kalibrasi confidence, evaluasi per "
+                    "tier, drill-down harian, dll) -- bukan kebutuhan pemantauan harian untuk mode Pemula. "
+                    "Ganti mode tampilan ke Trader/Audit di sidebar kalau tetap ingin membukanya."
+                )
             else:
-                st.dataframe(calibration_summary_df.style.format({
-                    "avg_confidence_pct": "{:.2f}%",
-                    "actual_accuracy_pct": "{:.2f}%",
-                    "calibration_gap_pct": "{:+.2f}%",
-                }), width="stretch")
+                st.caption("6 sub-tab analisis mendalam -- untuk audit/riset, bukan kebutuhan pemantauan harian.")
+                high_pred_tab, leaderboard_tab, tier_tab, calibration_tab, summary_tab, daily_tab = st.tabs([
+                    "Prediksi Akurasi Tinggi",
+                    "Leaderboard Trading Model",
+                    "Evaluasi per Tier",
+                    "Kalibrasi Confidence",
+                    "Ringkasan Akurasi Model",
+                    "Drill-down Rekap Harian per Saham",
+                ])
 
-        with summary_tab:
-            st.dataframe(view_summary_df.style.format({
-                "direction_accuracy_pct": "{:.2f}%",
-                "precision_naik_pct": "{:.2f}%",
-                "avg_return_after_naik_pct": "{:+.2f}%",
-                "avg_error_margin_pct": "{:.2f}%"
-            }), width="stretch")
-
-        with daily_tab:
-            if view_daily_recap_df.empty:
-                st.info("Belum ada rekap harian yang bisa ditampilkan.")
-            else:
-                filter_ticker = st.selectbox(
-                    "Filter ticker rekap harian",
-                    options=["SEMUA"] + sorted(view_daily_recap_df["ticker"].unique().tolist()),
-                    index=0 if use_all_tickers else ((["SEMUA"] + sorted(view_daily_recap_df["ticker"].unique().tolist())).index(ticker) if ticker in view_daily_recap_df["ticker"].unique().tolist() else 0),
-                    key="daily_accuracy_ticker_filter",
-                )
-                view_daily = view_daily_recap_df if filter_ticker == "SEMUA" else view_daily_recap_df[view_daily_recap_df["ticker"] == filter_ticker]
-                st.dataframe(view_daily.style.format({
-                    "direction_accuracy_pct": "{:.2f}%",
-                    "avg_error_margin_pct": "{:.2f}%"
-                }), width="stretch")
-
-                chart_df = view_daily.groupby(["evaluation_day", "model_name"], as_index=False).agg(
-                    total_predictions=("total_evaluations", "sum"),
-                    correct_predictions=("correct_predictions", "sum"),
-                )
-                if not chart_df.empty:
-                    chart_df["direction_accuracy_pct"] = (
-                        chart_df["correct_predictions"] / chart_df["total_predictions"].clip(lower=1) * 100
+                with high_pred_tab:
+                    st.write("Menampilkan prediksi terbaru dari model/saham yang historisnya paling akurat pada jenis evaluasi yang dipilih.")
+                    hp_col1, hp_col2 = st.columns(2)
+                    min_high_accuracy = hp_col1.number_input(
+                        "Minimal akurasi historis (%)",
+                        min_value=0.0,
+                        max_value=100.0,
+                        value=60.0,
+                        step=5.0,
                     )
-                if not chart_df.empty:
-                    st.line_chart(chart_df, x="evaluation_day", y="direction_accuracy_pct", color="model_name")
+                    min_high_samples = hp_col2.number_input(
+                        "Minimal jumlah evaluasi",
+                        min_value=1,
+                        max_value=100,
+                        value=int(min_samples),
+                        step=1,
+                    )
+                    high_accuracy_predictions_df = build_high_accuracy_prediction_view(
+                        view_trading_leaderboard_df,
+                        prediction_purpose=accuracy_purpose,
+                        min_accuracy=float(min_high_accuracy),
+                        min_samples=int(min_high_samples),
+                    )
+                    if high_accuracy_predictions_df.empty:
+                        st.info("Belum ada prediksi terbaru dari model yang memenuhi batas akurasi dan jumlah evaluasi.")
+                    else:
+                        st.dataframe(high_accuracy_predictions_df.style.format({
+                            "predicted_return_pct": "{:+.2f}%",
+                            "confidence_pct": "{:.2f}%",
+                            "direction_accuracy_pct": "{:.2f}%",
+                            "win_rate_pct": "{:.2f}%",
+                            "profit_factor": "{:.2f}",
+                            "trading_score": "{:.2f}",
+                        }), width="stretch", hide_index=True)
+
+                with leaderboard_tab:
+                    st.write("Leaderboard ini memakai accuracy, error margin, proxy return, win rate, dan profit factor per ticker/model.")
+                    if view_trading_leaderboard_df.empty:
+                        st.info("Belum ada data leaderboard untuk jenis evaluasi ini.")
+                    else:
+                        st.dataframe(view_trading_leaderboard_df.style.format({
+                            "direction_accuracy_pct": "{:.2f}%",
+                            "avg_error_margin_pct": "{:.2f}%",
+                            "avg_strategy_return_pct": "{:+.2f}%",
+                            "total_strategy_return_pct": "{:+.2f}%",
+                            "win_rate_pct": "{:.2f}%",
+                            "precision_naik_pct": "{:.2f}%",
+                            "avg_return_after_naik_pct": "{:+.2f}%",
+                            "profit_factor": "{:.2f}",
+                            "trading_score": "{:.2f}",
+                        }), width="stretch")
+
+                with tier_tab:
+                    st.write("Ringkasan ini membantu melihat apakah model lebih dapat dipercaya pada saham likuid dibanding saham kurang likuid.")
+                    if view_trading_leaderboard_df.empty or "liquidity_tier" not in view_trading_leaderboard_df.columns:
+                        st.info("Belum ada data tier likuiditas yang bisa diringkas.")
+                    else:
+                        tier_eval_df = (
+                            view_trading_leaderboard_df.dropna(subset=["liquidity_tier"])
+                            .groupby("liquidity_tier", as_index=False)
+                            .agg(
+                                jumlah_model=("model_name", "count"),
+                                total_evaluations=("total_evaluations", "sum"),
+                                avg_direction_accuracy_pct=("direction_accuracy_pct", "mean"),
+                                avg_precision_naik_pct=("precision_naik_pct", "mean"),
+                                avg_return_after_naik_pct=("avg_return_after_naik_pct", "mean"),
+                                avg_profit_factor=("profit_factor", "mean"),
+                                avg_trading_score=("trading_score", "mean"),
+                            )
+                            .sort_values("liquidity_tier")
+                        )
+                        st.dataframe(tier_eval_df.style.format({
+                            "avg_direction_accuracy_pct": "{:.2f}%",
+                            "avg_precision_naik_pct": "{:.2f}%",
+                            "avg_return_after_naik_pct": "{:+.2f}%",
+                            "avg_profit_factor": "{:.2f}",
+                            "avg_trading_score": "{:.2f}",
+                        }), width="stretch", hide_index=True)
+
+                with calibration_tab:
+                    st.write("Kalibrasi membandingkan rata-rata confidence model dengan akurasi aktual pada bucket confidence yang sama.")
+                    if calibration_summary_df.empty:
+                        st.info("Belum cukup data confidence yang sudah dievaluasi untuk membuat ringkasan kalibrasi.")
+                    else:
+                        st.dataframe(calibration_summary_df.style.format({
+                            "avg_confidence_pct": "{:.2f}%",
+                            "actual_accuracy_pct": "{:.2f}%",
+                            "calibration_gap_pct": "{:+.2f}%",
+                        }), width="stretch")
+
+                with summary_tab:
+                    st.dataframe(view_summary_df.style.format({
+                        "direction_accuracy_pct": "{:.2f}%",
+                        "precision_naik_pct": "{:.2f}%",
+                        "avg_return_after_naik_pct": "{:+.2f}%",
+                        "avg_error_margin_pct": "{:.2f}%"
+                    }), width="stretch")
+
+                with daily_tab:
+                    if view_daily_recap_df.empty:
+                        st.info("Belum ada rekap harian yang bisa ditampilkan.")
+                    else:
+                        filter_ticker = st.selectbox(
+                            "Filter ticker rekap harian",
+                            options=["SEMUA"] + sorted(view_daily_recap_df["ticker"].unique().tolist()),
+                            index=0 if use_all_tickers else ((["SEMUA"] + sorted(view_daily_recap_df["ticker"].unique().tolist())).index(ticker) if ticker in view_daily_recap_df["ticker"].unique().tolist() else 0),
+                            key="daily_accuracy_ticker_filter",
+                        )
+                        view_daily = view_daily_recap_df if filter_ticker == "SEMUA" else view_daily_recap_df[view_daily_recap_df["ticker"] == filter_ticker]
+                        st.dataframe(view_daily.style.format({
+                            "direction_accuracy_pct": "{:.2f}%",
+                            "avg_error_margin_pct": "{:.2f}%"
+                        }), width="stretch")
+
+                        chart_df = view_daily.groupby(["evaluation_day", "model_name"], as_index=False).agg(
+                            total_predictions=("total_evaluations", "sum"),
+                            correct_predictions=("correct_predictions", "sum"),
+                        )
+                        if not chart_df.empty:
+                            chart_df["direction_accuracy_pct"] = (
+                                chart_df["correct_predictions"] / chart_df["total_predictions"].clip(lower=1) * 100
+                            )
+                        render_interactive_accuracy_trend(
+                            chart_df, "evaluation_day", "direction_accuracy_pct", "model_name",
+                            title="Tren Akurasi Arah per Model (Drill-down)",
+                        )
     else:
         st.info("Belum ada data akurasi yang dievaluasi. Lakukan prediksi hari ini dan update data besok untuk melihat hasilnya.")
-
-if LEGACY_MODELS_ENABLED and tab_dashboard is not None:
-  with tab_dashboard:
-    st.header("Model Lama Nonaktif")
-    if not LEGACY_MODELS_ENABLED:
-        st.info(
-            "Model lama per-saham sudah dinonaktifkan agar tidak membingungkan. "
-            "Gunakan tab harian untuk prediksi Global Model, atau jalankan training global dari VS Code."
-        )
-        st.code("python scripts\\train_global_models_cli.py --config config\\stocks.yaml --run-type FINAL", language="powershell")
-        st.code("python scripts\\predict_global_models_cli.py --config config\\stocks.yaml --duplicate-policy skip --run-type FINAL", language="powershell")
-    st.write("Panel ini hanya arsip transisi. Jalur aktif sekarang adalah Global Model di Ringkasan/Workflow Harian.")
-    dashboard_completion_df = build_analysis_completion_status(active_tickers if active_tickers else tickers, required_models=["XGBoost"])
-    if dashboard_completion_df.empty:
-        render_feature_status("Model Lama", "BELUM LENGKAP", "Belum ada ticker yang bisa dicek.", "Pastikan config/stocks.yaml terisi.")
-    else:
-        dashboard_unfinished = int((dashboard_completion_df["status_analisis"] != "LENGKAP").sum())
-        render_feature_status(
-            "Model Lama",
-            "SIAP" if dashboard_unfinished == 0 else "BELUM LENGKAP",
-            f"{len(dashboard_completion_df) - dashboard_unfinished}/{len(dashboard_completion_df)} saham punya prediksi lama.",
-            "Prediksi baru tidak lagi memakai pipeline lama.",
-        )
-
-    # --- UPLOAD DATA MANUAL (OFFLINE MODE) ---
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Update Data Offline")
-    uploaded_file = st.sidebar.file_uploader(f"Upload file CSV historis untuk {ticker}", type=["csv"], disabled=use_all_tickers)
-    if uploaded_file is not None:
-        os.makedirs(os.path.join("data", "raw"), exist_ok=True)
-        file_path = os.path.join("data", "raw", f"{ticker}_raw.csv")
-        with open(file_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        st.sidebar.success(f"Data {ticker} berhasil diperbarui di lokal!")
-
-    if use_all_tickers:
-        st.info(f"Mode semua saham aktif: batch analysis akan memproses **{len(active_tickers)}** ticker dari konfigurasi.")
-    else:
-        st.info(f"Saham aktif untuk analisis: **{ticker}**. Ubah kode saham melalui sidebar jika ingin menganalisis emiten lain.")
-
-    analyze_sidebar_btn = st.sidebar.button("Analisis Lama Nonaktif", type="primary", disabled=not LEGACY_MODELS_ENABLED)
-    analyze_main_btn = st.button("Analisis Lama Nonaktif", type="primary", key="analysis_main_button", disabled=not LEGACY_MODELS_ENABLED)
-    analyze_all_btn = st.button(
-        "Analisis Semua Saham",
-        key="analysis_all_button",
-        disabled=(not bool(tickers) or not LEGACY_MODELS_ENABLED),
-        help="Menjalankan pipeline batch untuk seluruh saham pada config/stocks.yaml.",
-    )
-    analyze_all_background_btn = st.button(
-        "Analisis Semua Saham di Background",
-        key="analysis_all_background_button",
-        disabled=(not bool(tickers) or not LEGACY_MODELS_ENABLED),
-        help="Menjalankan analisis sebagai job terpisah agar tetap berjalan saat Anda berpindah tab.",
-    )
-    analyze_btn = analyze_sidebar_btn or analyze_main_btn
-
-    analyze_all_requested = analyze_all_btn or (use_all_tickers and analyze_btn)
-
-    if st.session_state.get("active_analysis_job_id"):
-        with st.expander("Status Job Background Analisis", expanded=True):
-            render_background_analysis_job(st.session_state["active_analysis_job_id"])
-            if st.button("Refresh Status Job", key="refresh_dashboard_bg_job"):
-                st.rerun()
-
-    if analyze_all_background_btn:
-        job_tickers = [str(t).replace(".JK", "").upper().strip() for t in tickers]
-        job_id = start_background_analysis_job(
-            job_tickers,
-            lstm_epochs=int(background_lstm_epochs) if "background_lstm_epochs" in locals() else 3,
-            duplicate_policy=daily_duplicate_policy if "daily_duplicate_policy" in locals() else "skip",
-            prediction_run_type=daily_prediction_run_type if "daily_prediction_run_type" in locals() else "FINAL",
-        )
-        st.success(f"Job background analisis semua saham dimulai. Job ID: {job_id}")
-        render_background_analysis_job(job_id)
-
-    if analyze_all_requested:
-        with st.spinner(f"Menjalankan analisis batch untuk {len(tickers)} saham..."):
-            progress_callback = create_live_analysis_tracker("Live Progress Analisis Semua Saham")
-            analysis_summary = run_full_analysis(
-                tickers=[str(t).replace(".JK", "").upper().strip() for t in tickers],
-                lstm_epochs=3,
-                progress_callback=progress_callback,
-                duplicate_policy=daily_duplicate_policy if "daily_duplicate_policy" in locals() else "skip",
-                prediction_run_type=daily_prediction_run_type if "daily_prediction_run_type" in locals() else "FINAL",
-            )
-            st.session_state["last_auto_analysis_summary"] = analysis_summary
-        st.success("Analisis semua saham selesai. Hasil terbaru dapat dilihat di Ranking Prediksi dan Akurasi Model.")
-        render_analysis_summary(analysis_summary, show_analyzed=False)
-
-    if analyze_btn and not use_all_tickers and not ticker:
-        st.warning("Masukkan kode saham terlebih dahulu, misalnya BBRI atau BBCA.")
-
-    if analyze_btn and not use_all_tickers and ticker:
-        with st.spinner(f"Menganalisis pergerakan saham {ticker} (Offline Mode)..."):
-            try:
-                # Mengevaluasi data prediksi yang pending jika data csv baru diupload
-                evaluate_pending_predictions()
-                
-                # Memproses data secara offline (langsung mengeksekusi pipeline)
-                df = loader.load_data(ticker)
-                
-                if df is not None:
-                    latest_data_date = df["timestamp"].max().date()
-                    current_date_str = df["timestamp"].iloc[-1].strftime("%Y-%m-%d")
-                    active_duplicate_policy = daily_duplicate_policy if "daily_duplicate_policy" in locals() else "skip"
-                    active_run_type = daily_prediction_run_type if "daily_prediction_run_type" in locals() else "FINAL"
-                    if (
-                        active_duplicate_policy == "skip"
-                        and active_run_type == "FINAL"
-                        and has_core_prediction_for_data_date(ticker, current_date_str, run_type="FINAL")
-                    ):
-                        st.info(
-                            f"Analisis dilewati. Prediksi inti FINAL H+1 dan H+3 untuk {ticker} "
-                            f"pada tanggal data {current_date_str} sudah pernah dibuat."
-                        )
-                        st.stop()
-                    if latest_data_date == datetime.now().date():
-                        st.warning(
-                            "Data terakhir adalah data hari ini dan kemungkinan masih berjalan. "
-                            "High/low intraday yang belum final akan disesuaikan sementara agar analisis tetap bisa berjalan."
-                        )
-
-                    idx_df = loader.load_data('^JKSE')
-                    if idx_df is None:
-                        idx_df = df
-                    features_df = engineer.generate_features(df, idx_df=idx_df)
-                    if features_df.empty:
-                        raise ValueError("Gagal membuat fitur atau jumlah data belum cukup.")
-
-                    guardrail = assert_no_training_leakage(
-                        raw_df=df,
-                        features_df=features_df,
-                        ticker=ticker,
-                        prediction_date=df["timestamp"].iloc[-1],
-                    )
-                    if not guardrail.passed:
-                        st.error("Guardrail data/model gagal. Analisis dihentikan untuk mencegah bias atau data leakage.")
-                        for error in guardrail.errors:
-                            st.write(f"- {error}")
-                        raise ValueError("Guardrail data/model gagal.")
-                    with st.expander("Audit Guardrail Data & Model", expanded=False):
-                        st.success("Data dan fitur lolos pemeriksaan dasar anti-leakage.")
-                        if guardrail.warnings:
-                            for warning in guardrail.warnings:
-                                st.warning(warning)
-                        else:
-                            st.caption("Tidak ada warning kualitas data yang terdeteksi.")
-                    
-                    # 1. Melatih Model Isolation Forest
-                    if_model = IsolationForestModel(contamination=0.05)
-                    if_model.train(features_df)
-                    results = if_model.predict(features_df)
-                    
-                    scores_list = results['anomaly_score']
-                    latest_score = float(scores_list[-1] if isinstance(scores_list, list) else scores_list)
-
-                    # 2. Kalibrasi Conformal Predictor
-                    cp = ConformalPredictor(alpha=0.05)
-                    if isinstance(scores_list, list) and len(scores_list) > 50:
-                        cp.calibrate(scores_list[:-1])
-                    else:
-                        cp.calibrate([50.0] * 100)
-
-                    # 3. Klasifikasi Regim
-                    rc = RegimeClassifier()
-                    regime_features = rc.calculate_regime_features(idx_df, df)
-                    regime_result = rc.classify(regime_features)
-                    regime_str = regime_result.get("regime", "VOLATILE")
-                    
-                    # 4. Soft Ensemble
-                    copod = None
-                    if regime_str == "VOLATILE":
-                        try:
-                            copod = COPODModel(contamination=0.05)
-                            copod.train(features_df)
-                        except Exception as e:
-                            logger.warning(f"Gagal melatih COPOD: {e}")
-                            
-                    ensemble_result = soft_ensemble_predict(
-                        features_df=features_df,
-                        regime=regime_str,
-                        isolation_forest_model=if_model,
-                        conformal_predictor=cp,
-                        copod_model=copod
-                    )
-
-                    # 5. Proyeksi Harga Multi-Horizon & Klasifikasi Arah
-                    projection_horizons = [3, 5, 10]
-                    projectors = {}
-                    projections = {}
-                    lightgbm_projections = {}
-                    for horizon in projection_horizons:
-                        horizon_projector = PriceProjector(projection_horizon=horizon)
-                        horizon_projector.train(features_df)
-                        projectors[horizon] = horizon_projector
-                        projections[horizon] = horizon_projector.predict(features_df)
-                        try:
-                            lgbm_projector = PriceProjector(projection_horizon=horizon, model_type="lightgbm")
-                            lgbm_projector.train(features_df)
-                            lightgbm_projections[horizon] = lgbm_projector.predict(features_df)
-                        except Exception as e:
-                            logger.warning(f"Gagal melatih LightGBMRegressor H+{horizon}: {e}")
-
-                    project_horizon = 3
-                    projector = projectors[project_horizon]
-                    projection = projections[project_horizon]
-                    next_day_projector = PriceProjector(projection_horizon=1)
-                    next_day_projector.train(features_df)
-                    next_day_projection = next_day_projector.predict(features_df)
-
-                    classifier_predictions = {}
-                    for model_type in ["lightgbm", "xgboost", "random_forest", "logistic"]:
-                        try:
-                            clf = DirectionClassifier(horizon_days=1, model_type=model_type)
-                            clf.train(features_df)
-                            classifier_predictions[model_type.upper()] = clf.predict(features_df)
-                        except Exception as e:
-                            logger.warning(f"Gagal melatih classifier {model_type}: {e}")
-
-                    reliability_weights = get_reliability_weights(
-                        ticker,
-                        classifier_predictions.keys(),
-                        prediction_purpose="NEXT_DAY_DIRECTION",
-                    )
-                    direction_ensemble = weighted_direction_probability(classifier_predictions, reliability_weights)
-
-                    lstm_projector = LSTMPriceProjector(projection_horizon=project_horizon, lookback=20)
-                    lstm_projector.train(features_df, epochs=3)
-                    lstm_projection = lstm_projector.predict(features_df)
-                    next_day_lstm_projector = LSTMPriceProjector(projection_horizon=1, lookback=20)
-                    next_day_lstm_projector.train(features_df, epochs=3)
-                    next_day_lstm_projection = next_day_lstm_projector.predict(features_df)
-
-                    # 6. Proyeksi Volatilitas (GARCH)
-                    garch_model = GARCHModel(p=1, q=1)
-                    garch_model.train(df)
-                    garch_projection = garch_model.predict(horizon=project_horizon)
-
-                    data = {
-                        "current_price": float(df['close'].iloc[-1]),
-                        "latest_data_date": df['timestamp'].iloc[-1].date(),
-                        "anomaly_score": ensemble_result.get("anomaly_score", 0.0),
-                        "p_value": ensemble_result.get("p_value", 0.05),
-                        "regime": regime_str,
-                        "projection_3d": projection,
-                        "projection_5d": projections[5],
-                        "projection_10d": projections[10],
-                        "lightgbm_projections": lightgbm_projections,
-                        "lstm_projection_3d": lstm_projection,
-                        "direction_ensemble": direction_ensemble,
-                        "volatility_pct": garch_projection.get("projected_volatility_pct", 0.0),
-                        "var_95_pct": garch_projection.get("value_at_risk_95_pct", 0.0)
-                    }
-                    
-                    # --- CATAT PREDIKSI UNTUK TRACKING ---
-                    current_date_str = df['timestamp'].iloc[-1].strftime("%Y-%m-%d")
-                    target_date_str = (df['timestamp'].iloc[-1] + timedelta(days=project_horizon)).strftime("%Y-%m-%d")
-                    next_day_target_date_str = (df['timestamp'].iloc[-1] + timedelta(days=1)).strftime("%Y-%m-%d")
-                    prediction_log_kwargs = {
-                        "duplicate_policy": daily_duplicate_policy if "daily_duplicate_policy" in locals() else "skip",
-                        "prediction_run_type": daily_prediction_run_type if "daily_prediction_run_type" in locals() else "FINAL",
-                    }
-                    for horizon, horizon_projection in projections.items():
-                        horizon_target_date_str = (df['timestamp'].iloc[-1] + timedelta(days=horizon)).strftime("%Y-%m-%d")
-                        purpose = "THREE_DAY_FORECAST" if horizon == 3 else f"H{horizon}_TREND_FORECAST"
-                        log_prediction(ticker, "XGBoost", current_date_str, horizon_target_date_str, horizon_projection['projected_price'], data['current_price'], horizon_days=horizon, prediction_purpose=purpose, **prediction_log_kwargs)
-                        if horizon in lightgbm_projections:
-                            log_prediction(ticker, "LightGBM", current_date_str, horizon_target_date_str, lightgbm_projections[horizon]['projected_price'], data['current_price'], horizon_days=horizon, prediction_purpose=purpose, **prediction_log_kwargs)
-                    log_prediction(ticker, "XGBoost", current_date_str, next_day_target_date_str, next_day_projection['projected_price'], data['current_price'], horizon_days=1, prediction_purpose="NEXT_DAY_DIRECTION", **prediction_log_kwargs)
-                    if is_valid_projection(lstm_projection):
-                        log_prediction(ticker, "LSTM", current_date_str, target_date_str, lstm_projection['projected_price'], data['current_price'], horizon_days=project_horizon, prediction_purpose="THREE_DAY_FORECAST", **prediction_log_kwargs)
-                    if is_valid_projection(next_day_lstm_projection):
-                        log_prediction(ticker, "LSTM", current_date_str, next_day_target_date_str, next_day_lstm_projection['projected_price'], data['current_price'], horizon_days=1, prediction_purpose="NEXT_DAY_DIRECTION", **prediction_log_kwargs)
-                    for model_name, clf_prediction in classifier_predictions.items():
-                        direction_price = data['current_price'] * (1.01 if clf_prediction["direction"] == "NAIK" else 0.99)
-                        log_prediction(
-                            ticker,
-                            f"Direction-{model_name}",
-                            current_date_str,
-                            next_day_target_date_str,
-                            direction_price,
-                            data['current_price'],
-                            horizon_days=1,
-                            prediction_purpose="NEXT_DAY_DIRECTION",
-                            predicted_direction=clf_prediction["direction"],
-                            prob_up=clf_prediction["prob_up"],
-                            prob_down=clf_prediction["prob_down"],
-                            confidence_pct=clf_prediction["confidence_pct"],
-                            **prediction_log_kwargs,
-                        )
-                    ensemble_price = data['current_price'] * (1.01 if direction_ensemble["direction"] == "NAIK" else 0.99)
-                    log_prediction(
-                        ticker,
-                        "Direction-Ensemble",
-                        current_date_str,
-                        next_day_target_date_str,
-                        ensemble_price,
-                        data['current_price'],
-                        horizon_days=1,
-                        prediction_purpose="NEXT_DAY_DIRECTION",
-                        predicted_direction=direction_ensemble["direction"],
-                        prob_up=direction_ensemble["prob_up"],
-                        prob_down=direction_ensemble["prob_down"],
-                        confidence_pct=direction_ensemble["confidence_pct"],
-                        **prediction_log_kwargs,
-                    )
-
-                    st.markdown(f"#### Hasil Analisis AI: {ticker}")
-                    if data["latest_data_date"] < datetime.now().date():
-                        st.warning(
-                            f"Data harga terakhir untuk {ticker} berasal dari {data['latest_data_date']}. "
-                            "Jika berbeda dengan harga pasar hari ini, jalankan update data terlebih dahulu."
-                        )
-                    
-                    # --- METRIK UTAMA (COMPACT) ---
-                    anomaly_score = data['anomaly_score']
-                    metrics_df = pd.DataFrame([
-                        {"Indikator": "Harga Terakhir", "Nilai": f"Rp {data['current_price']:,.0f}"},
-                        {"Indikator": "Tanggal Data", "Nilai": data["latest_data_date"].strftime("%Y-%m-%d")},
-                        {"Indikator": "Skor Anomali", "Nilai": f"{anomaly_score:.2f}/100"},
-                        {"Indikator": "P-Value", "Nilai": f"{data['p_value']:.3f}"},
-                        {"Indikator": "Regim Pasar", "Nilai": data["regime"]},
-                        {"Indikator": "Arah H+1 Ensemble", "Nilai": f"{direction_ensemble['direction']} ({direction_ensemble['confidence_pct']:.1f}%)"},
-                        {"Indikator": "Volatilitas H+3", "Nilai": f"{data['volatility_pct']:.2f}%"},
-                        {"Indikator": "VaR 95% 1-Hari", "Nilai": f"{data['var_95_pct']:.2f}%"},
-                    ])
-                    st.dataframe(metrics_df, width="stretch", hide_index=True, height=280)
-                    
-                    # --- PROYEKSI HARGA ---
-                    if "projection_3d" in data:
-                        proj = data["projection_3d"]
-                        lstm_proj = data["lstm_projection_3d"]
-                        projection_rows = [
-                            {
-                                "Model": "XGBoost",
-                                "Target H+3": f"Rp {proj['projected_price']:,.0f}",
-                                "Potensi H+3": f"{proj['projected_return_pct']:+.2f}%",
-                                "Potensi H+5": f"{data['projection_5d']['projected_return_pct']:+.2f}%",
-                                "Potensi H+10": f"{data['projection_10d']['projected_return_pct']:+.2f}%",
-                            },
-                        ]
-                        if 3 in data["lightgbm_projections"]:
-                            lgbm_proj = data["lightgbm_projections"][3]
-                            projection_rows.append({
-                                "Model": "LightGBM",
-                                "Target H+3": f"Rp {lgbm_proj['projected_price']:,.0f}",
-                                "Potensi H+3": f"{lgbm_proj['projected_return_pct']:+.2f}%",
-                                "Potensi H+5": f"{data['lightgbm_projections'].get(5, {}).get('projected_return_pct', 0.0):+.2f}%",
-                                "Potensi H+10": f"{data['lightgbm_projections'].get(10, {}).get('projected_return_pct', 0.0):+.2f}%",
-                            })
-                        if is_valid_projection(lstm_proj):
-                            projection_rows.append({
-                                "Model": "LSTM",
-                                "Target H+3": f"Rp {lstm_proj['projected_price']:,.0f}",
-                                "Potensi H+3": f"{lstm_proj['projected_return_pct']:+.2f}%",
-                                "Potensi H+5": "-",
-                                "Potensi H+10": "-",
-                            })
-                        else:
-                            st.caption("Prediksi LSTM belum tersedia. Pastikan PyTorch terpasang jika ingin mengaktifkan model LSTM.")
-                        st.dataframe(pd.DataFrame(projection_rows), width="stretch", hide_index=True)
-
-                    st.markdown("### Direction Classifier H+1")
-                    if classifier_predictions:
-                        classifier_rows = []
-                        for model_name, pred in classifier_predictions.items():
-                            classifier_rows.append({
-                                "Model": model_name,
-                                "Peluang Naik": f"{pred['prob_up'] * 100:.2f}%",
-                                "Peluang Turun": f"{pred['prob_down'] * 100:.2f}%",
-                                "Arah": pred["direction"],
-                                "Confidence": f"{pred['confidence_pct']:.2f}%",
-                                "Bobot Reliability": f"{reliability_weights.get(model_name, 0.0) * 100:.2f}%",
-                            })
-                        classifier_rows.append({
-                            "Model": "ENSEMBLE",
-                            "Peluang Naik": f"{direction_ensemble['prob_up'] * 100:.2f}%",
-                            "Peluang Turun": f"{direction_ensemble['prob_down'] * 100:.2f}%",
-                            "Arah": direction_ensemble["direction"],
-                            "Confidence": f"{direction_ensemble['confidence_pct']:.2f}%",
-                            "Bobot Reliability": "100.00%",
-                        })
-                        st.dataframe(pd.DataFrame(classifier_rows), width="stretch", hide_index=True)
-                    else:
-                        st.warning("Classifier arah belum bisa dilatih untuk data ini.")
-
-                    with st.expander("Baseline Strategy & Walk-Forward Validation", expanded=False):
-                        baseline_h1 = evaluate_baseline_strategies(features_df, horizon_days=1)
-                        baseline_h3 = evaluate_baseline_strategies(features_df, horizon_days=3)
-                        btab1, btab2, btab3 = st.tabs(["Baseline H+1", "Baseline H+3", "Walk-Forward"])
-                        with btab1:
-                            st.dataframe(baseline_h1.style.format({
-                                "direction_accuracy_pct": "{:.2f}%",
-                                "avg_return_pct": "{:+.2f}%",
-                                "win_rate_pct": "{:.2f}%",
-                            }), width="stretch")
-                        with btab2:
-                            st.dataframe(baseline_h3.style.format({
-                                "direction_accuracy_pct": "{:.2f}%",
-                                "avg_return_pct": "{:+.2f}%",
-                                "win_rate_pct": "{:.2f}%",
-                            }), width="stretch")
-                        with btab3:
-                            try:
-                                direction_factory = (
-                                    lambda: LGBMClassifier(n_estimators=120, learning_rate=0.05, random_state=42, verbosity=-1)
-                                    if LGBMClassifier is not None
-                                    else xgb.XGBClassifier(n_estimators=120, learning_rate=0.05, random_state=42, eval_metric="logloss")
-                                )
-                                return_factory = (
-                                    lambda: LGBMRegressor(n_estimators=120, learning_rate=0.05, random_state=42, verbosity=-1)
-                                    if LGBMRegressor is not None
-                                    else xgb.XGBRegressor(n_estimators=120, learning_rate=0.05, random_state=42, objective="reg:squarederror")
-                                )
-                                wf_h1 = walk_forward_direction_validation(features_df, direction_factory, horizon_days=1)
-                                wf_h3 = walk_forward_return_validation(features_df, return_factory, horizon_days=3)
-                                wf_h5 = walk_forward_return_validation(features_df, return_factory, horizon_days=5)
-                                wf_h10 = walk_forward_return_validation(features_df, return_factory, horizon_days=10)
-                                wf_df = pd.DataFrame([
-                                    {"Validasi": "Direction H+1", **wf_h1},
-                                    {"Validasi": "Return H+3", **wf_h3},
-                                    {"Validasi": "Return H+5", **wf_h5},
-                                    {"Validasi": "Return H+10", **wf_h10},
-                                ])
-                                st.dataframe(wf_df, width="stretch", hide_index=True)
-                            except Exception as e:
-                                st.warning(f"Walk-forward belum dapat dihitung: {e}")
-
-                    with st.expander("AI Explainability: SHAP / Feature Importance XGBoost", expanded=False):
-                        st.write(
-                            "Bagian ini membantu membaca alasan model XGBoost membuat proyeksi. "
-                            "Kontribusi positif mendorong prediksi return H+3 lebih tinggi, sedangkan kontribusi negatif menekan prediksi."
-                        )
-                        explanation_df, explanation_status = build_xgboost_explanation(projector, features_df)
-                        if explanation_df.empty:
-                            st.warning(explanation_status)
-                        else:
-                            st.caption(explanation_status)
-                            if "Kontribusi SHAP" in explanation_df.columns:
-                                chart_df = explanation_df.sort_values("Kontribusi SHAP")
-                                colors = [
-                                    "#16a34a" if value > 0 else "#dc2626"
-                                    for value in chart_df["Kontribusi SHAP"]
-                                ]
-                                fig_shap = go.Figure(go.Bar(
-                                    x=chart_df["Kontribusi SHAP"],
-                                    y=chart_df["Nama Mudah"],
-                                    orientation="h",
-                                    marker_color=colors,
-                                ))
-                                fig_shap.update_layout(
-                                    height=420,
-                                    margin=dict(l=0, r=0, t=20, b=0),
-                                    xaxis_title="Kontribusi terhadap prediksi return",
-                                    yaxis_title="Fitur",
-                                )
-                                st.plotly_chart(fig_shap, width="stretch")
-                                st.dataframe(
-                                    explanation_df.style.format({
-                                        "Nilai Saat Ini": "{:,.4f}",
-                                        "Kontribusi SHAP": "{:+.6f}",
-                                    }),
-                                    width="stretch",
-                                )
-                            else:
-                                chart_df = explanation_df.sort_values("Importance")
-                                fig_importance = go.Figure(go.Bar(
-                                    x=chart_df["Importance"],
-                                    y=chart_df["Nama Mudah"],
-                                    orientation="h",
-                                    marker_color="#2563eb",
-                                ))
-                                fig_importance.update_layout(
-                                    height=420,
-                                    margin=dict(l=0, r=0, t=20, b=0),
-                                    xaxis_title="Feature importance",
-                                    yaxis_title="Fitur",
-                                )
-                                st.plotly_chart(fig_importance, width="stretch")
-                                st.dataframe(
-                                    explanation_df.style.format({
-                                        "Nilai Saat Ini": "{:,.4f}",
-                                        "Importance": "{:.6f}",
-                                    }),
-                                    width="stretch",
-                                )
-                    
-                    # --- REKOMENDASI TRADING ---
-                    st.markdown("---")
-                    st.subheader("Rekomendasi Setup Trading")
-                    
-                    # Generate Setup Trading secara lokal
-                    rsi = float(features_df['feat_rsi_14'].iloc[-1])
-                    atr = float(features_df['feat_atr_14'].iloc[-1])
-                    
-                    setup = generate_signal(
-                        ticker, 
-                        data["current_price"], 
-                        data["anomaly_score"], 
-                        data["p_value"], 
-                        data["regime"], 
-                        rsi, 
-                        atr
-                    )
-
-                    decision = build_decision_support(
-                        ticker=ticker,
-                        current_price=data["current_price"],
-                        projected_return_pct=projection.get("projected_return_pct", 0.0),
-                        anomaly_score=data["anomaly_score"],
-                        p_value=data["p_value"],
-                        regime=data["regime"],
-                        rsi=rsi,
-                        volatility_pct=data["volatility_pct"],
-                        var_95_pct=data["var_95_pct"],
-                        signal_result=setup,
-                        capital=float(portfolio_capital),
-                        risk_pct=float(risk_per_trade_pct),
-                    )
-
-                    st.markdown("### Decision Support")
-                    d1, d2, d3 = st.columns(3)
-                    d1.metric("AI Confidence Score", f"{decision['ai_confidence_score']:.1f}/100", decision["confidence_label"])
-                    d2.metric("Trade Readiness", decision["readiness"])
-                    sizing = decision.get("position_sizing", {})
-                    d3.metric("Rekomendasi Lot", f"{sizing.get('lots', 0):,.0f}")
-
-                    if decision.get("reasons"):
-                        st.caption("Catatan: " + " ".join(decision["reasons"]))
-
-                    trade_gate = build_trade_gate(
-                        projected_return_pct=projection.get("projected_return_pct", 0.0),
-                        confidence_pct=direction_ensemble.get("confidence_pct", decision["ai_confidence_score"]),
-                        volatility_pct=data["volatility_pct"],
-                        min_confidence_pct=60.0,
-                        min_projected_return_pct=1.0,
-                        max_volatility_pct=8.0,
-                    )
-                    if trade_gate["passed"]:
-                        st.success(f"Trade Gate: {trade_gate['status']}")
-                    else:
-                        st.warning(f"Trade Gate: {trade_gate['status']}")
-                        st.caption(" ".join(trade_gate["reasons"]))
-                    
-                    if setup.get('action') == 'TRADE':
-                        st.success(f"**SIGNAL: {setup['setup']['direction']}**")
-                        s = setup['setup']
-                        c1, c2, c3, c4 = st.columns(4)
-                        c1.metric("Entry Price", f"Rp {s['entry']:,.0f}")
-                        c2.metric("Stop Loss", f"Rp {s['stop_loss']:,.0f}")
-                        c3.metric("Take Profit 1", f"Rp {s['take_profit_1']:,.0f}")
-                        c4.metric("Take Profit 2", f"Rp {s['take_profit_2']:,.0f}")
-                        if sizing:
-                            st.caption(
-                                f"Estimasi nilai posisi: Rp {sizing.get('position_value', 0.0):,.0f} "
-                                f"({sizing.get('capital_used_pct', 0.0):.2f}% modal), "
-                                f"risiko maksimum: Rp {sizing.get('risk_amount', 0.0):,.0f}."
-                            )
-                    else:
-                        st.warning(f"**SIGNAL: SKIP (Tidak Ada Sinyal Entry)**")
-                        st.write(f"**Alasan AI:** {setup.get('reason', 'Kondisi anomali tidak mencukupi standar setup yang aman.')}")
-
-                    st.markdown("---")
-                    st.subheader("Backtest Ringkas Decision Support")
-                    try:
-                        backtest_df = features_df.copy()
-                        backtest_df["projected_return_pct"] = (
-                            (backtest_df["close"].shift(-project_horizon) / backtest_df["close"]) - 1.0
-                        ) * 100.0
-                        backtest_df["anomaly_score"] = results["anomaly_score"]
-                        backtest_df["p_value"] = 0.01
-                        backtest_df["ai_confidence_score"] = backtest_df.apply(
-                            lambda row: calculate_ai_confidence_score(
-                                projected_return_pct=float(row["projected_return_pct"]) if pd.notna(row["projected_return_pct"]) else 0.0,
-                                anomaly_score=float(row["anomaly_score"]),
-                                p_value=float(row["p_value"]),
-                                regime=regime_str,
-                                rsi=float(row["feat_rsi_14"]),
-                                volatility_pct=data["volatility_pct"],
-                                var_95_pct=data["var_95_pct"],
-                            )["ai_confidence_score"],
-                            axis=1,
-                        )
-                        backtest_df = backtest_df.dropna(subset=["projected_return_pct"])
-                        bt = BacktestEngine().simulate_signal_strategy(
-                            backtest_df,
-                            initial_capital=float(portfolio_capital),
-                            risk_pct=float(risk_per_trade_pct),
-                            holding_period=project_horizon,
-                            min_confidence_score=55.0,
-                        )
-                        metrics = bt["metrics"]
-                        b1, b2, b3, b4, b5 = st.columns(5)
-                        b1.metric("Total Trade", f"{metrics.get('total_trades', 0):,.0f}")
-                        b2.metric("Win Rate", f"{metrics.get('win_rate', 0.0) * 100:.1f}%")
-                        b3.metric("Return", f"{metrics.get('return_pct', 0.0):+.2f}%")
-                        b4.metric("Profit Factor", f"{metrics.get('profit_factor', 0.0):.2f}")
-                        b5.metric("Max Drawdown", f"{metrics.get('max_drawdown', 0.0) * 100:.2f}%")
-                    except Exception as e:
-                        st.warning(f"Backtest ringkas belum dapat dihitung: {e}")
-                    
-                    # --- VISUALISASI GRAFIK CANDLESTICK ---
-                    st.markdown("---")
-                    st.subheader(f"Pergerakan Harga Terakhir ({ticker})")
-                    
-                    # Kita menggunakan dataframe 'df' yang sudah diload di awal agar lebih cepat (tidak perlu baca CSV 2 kali)
-                    df_plot = df.tail(100)
-                    fig = go.Figure(data=[go.Candlestick(x=df_plot['timestamp'],
-                                    open=df_plot['open'], high=df_plot['high'],
-                                    low=df_plot['low'], close=df_plot['close'])])
-                    fig.update_layout(xaxis_rangeslider_visible=False, height=500, margin=dict(l=0, r=0, t=30, b=0))
-                    st.plotly_chart(fig, width="stretch")
-                        
-                else:
-                    st.error(f"Data {ticker} tidak ditemukan. Pastikan file CSV tersedia di data/raw/.")
-                    
-            except Exception as e:
-                st.error(f"Terjadi kesalahan saat memproses data: {e}")
 

@@ -1,3 +1,7 @@
+# PERINGATAN: sinyal di sini (anomaly_score, p_value, confidence) belum pernah
+# dibandingkan ke baseline naif lewat walk-forward -- lihat src/models/walk_forward.py
+# untuk metodologi validasi yang sebenarnya dipakai jalur produksi (streamlit_app.py).
+# Modul ini tidak dipanggil oleh streamlit_app.py.
 from fastapi import APIRouter, HTTPException, Depends
 import logging
 from typing import Dict, Any
@@ -144,7 +148,7 @@ def get_trade_setup(ticker: str, db: Session = Depends(get_db)) -> Dict[str, Any
             db_setup = {
                 "ticker": ticker.upper(),
                 "timestamp": anomaly_data["timestamp"],
-                "signal": setup_result["setup"]["signal"],
+                "signal": setup_result["setup"]["direction"],
                 "entry_price": setup_result["setup"]["entry"],
                 "stop_loss": setup_result["setup"]["stop_loss"],
                 "take_profit_1": setup_result["setup"]["take_profit_1"],
