@@ -102,6 +102,65 @@ ini demi menambah jumlah rekomendasi yang bisa ditampilkan.
 - [ ] **(Opsional) Kalender aksi korporasi**: stock split, dividen, rights
       issue -- supaya tidak ada sinyal palsu di sekitar tanggal-tanggal itu.
 
+## Item tambahan diselamatkan dari `GEMINI AI` (proyek dipensiunkan 2026-07-17)
+
+`GEMINI AI` (folder terpisah di workspace) awalnya direncanakan sebagai
+trading app kedua, tapi arsitektur intinya (Isolation Forest + LightGBM/
+XGBoost untuk arah harga) duplikat dari yang sudah diuji dan tidak
+menunjukkan edge di proyek ini -- jadi dipensiunkan sebelum sempat
+diimplementasi (src/ masih 100% kosong di sana). Tapi spek proyek itu
+(`GEMINI AI/Dokumen Rujukan Ketat.md`, sebenarnya file .docx berlabel
+.md) punya blueprint SIAP PAKAI untuk 3 hal yang persis mengisi gap di
+atas -- dikutip di sini supaya tidak perlu dirancang dari nol.
+
+### 6. Fitur cross-sectional ranking (fondasi murah untuk item #2)
+- [ ] Tambahkan fitur peringkat ANTAR-ticker pada tanggal yang sama
+      (bukan per-ticker seperti fitur teknikal yang sudah ada):
+      `rank_return_1d`, `rank_return_5d`, `rank_volume_zscore`,
+      `rank_volatility_20`, `rank_momentum_20`. Dihitung dengan
+      `groupby("timestamp")`, kontras dengan fitur teknikal biasa yang
+      pakai `groupby("kode_saham")`.
+- Sumber blueprint: `GEMINI AI/Dokumen Rujukan Ketat.md` bagian 11.
+- Effort: kecil. Prasyarat murah/cepat sebelum menghitung matriks
+  korelasi/kovariansi penuh antar-ticker yang diminta item #2 di atas.
+
+### 7. Modul portofolio Top-K + Inverse Volatility Weighting (v1 sebelum solver penuh)
+- [ ] Bangun versi awal position sizing/portfolio construction: pilih
+      Top-K ticker (mis. K=10), bobot dihitung `raw_weight_i =
+      1/volatility_i` lalu dinormalisasi (`weight_i = raw_weight_i /
+      sum(raw_weight)`), batas bobot maksimal per saham (mis. 15%),
+      filter anomaly score, rebalancing berkala (mis. mingguan).
+- Sumber blueprint: `GEMINI AI/Dokumen Rujukan Ketat.md` bagian 21.
+- **PENYESUAIAN WAJIB, bukan opsional**: spek asli memilih Top-K
+  langsung dari `priority_score`/probabilitas mentah TANPA gate
+  kepercayaan apa pun. Itu melanggar Prinsip Desain #4 proyek ini
+  (lihat `STATUS_PROYEK_AI_TRADING.md` bagian 6): "Prescriptive
+  analytics HANYA untuk ticker Terverifikasi Ganda". Saat
+  mengimplementasikan modul ini, **filter trust gate
+  (`compute_unified_trust_badge`) wajib diterapkan SEBELUM Top-K
+  selection**, bukan dipakai apa adanya seperti spek aslinya -- kalau
+  hasil filter itu kosong (lihat catatan gating di item #1), modul ini
+  belum bisa jalan sampai ada ticker yang lolos.
+- Effort: sedang. Bisa jadi v1 yang lebih murah sebelum solver
+  `scipy.optimize`/`cvxpy` di item #2 (optimasi portofolio penuh).
+
+### 8. Modul backtesting strategi lengkap (mengisi gap item #3 langsung)
+- [ ] Backtest kronologis dengan biaya transaksi eksplisit, modal awal,
+      rebalancing periodik, dibandingkan ke benchmark equal-weight DAN
+      buy-and-hold sederhana (bukan cuma dibandingkan ke baseline arah
+      seperti walk-forward yang sudah ada).
+- [ ] Metrik: cumulative return, annualized return, annualized
+      volatility, maximum drawdown, Sharpe ratio sederhana, win rate,
+      turnover, jumlah transaksi.
+- Sumber blueprint: `GEMINI AI/Dokumen Rujukan Ketat.md` bagian 22 & 35
+  -- parameter awal siap pakai sebagai starting point (Top-K=10,
+  rebalancing mingguan, biaya transaksi 0.15% per transaksi, modal awal
+  Rp100.000.000, max weight 15%/saham, anomaly threshold 75) --
+  sesuaikan ke biaya transaksi IDX riil sebelum dipercaya angkanya.
+- Effort: sedang-besar (estimasi sama seperti item #3 di atas -- ini
+  detail implementasi tambahan untuk item yang sama, bukan item
+  terpisah dari segi cakupan kerja).
+
 ## Cara memakai ulang dokumen ini
 
 Kalau mau lanjut kerjakan salah satu item, cukup rujuk nomornya (mis. "kerjakan

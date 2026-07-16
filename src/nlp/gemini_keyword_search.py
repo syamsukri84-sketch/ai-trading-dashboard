@@ -30,6 +30,7 @@ DEFAULT_MODEL = "gemini-flash-latest"
 class GeminiConfig:
     api_key: str
     model: str = DEFAULT_MODEL
+    use_grounding: bool = True
 
     @property
     def enabled(self) -> bool:
@@ -42,7 +43,9 @@ def get_gemini_config() -> GeminiConfig:
     if any(token.lower() in api_key.lower() for token in placeholder_tokens):
         api_key = ""
     model = os.getenv("GEMINI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
-    return GeminiConfig(api_key=api_key, model=model)
+    use_grounding_raw = os.getenv("AI_TRADING_GEMINI_USE_GROUNDING", "true").strip().lower()
+    use_grounding = use_grounding_raw not in {"0", "false", "no", "off", "tidak"}
+    return GeminiConfig(api_key=api_key, model=model, use_grounding=use_grounding)
 
 
 def check_gemini_status(config: GeminiConfig | None = None) -> dict[str, Any]:
@@ -67,7 +70,10 @@ def check_gemini_status(config: GeminiConfig | None = None) -> dict[str, Any]:
         "enabled": True,
         "ok": True,
         "model": config.model,
-        "message": f"Gemini API aktif (model: {config.model}).",
+        "message": (
+            f"Gemini API aktif (model: {config.model}; "
+            f"Google Search grounding: {'aktif' if config.use_grounding else 'nonaktif'})."
+        ),
     }
 
 
@@ -168,19 +174,22 @@ def suggest_sentiment_keywords(tickers: list[str], top_n: int = 5, config: Gemin
 
     client = genai.Client(api_key=config.api_key)
     prompt = _build_prompt(clean_tickers, top_n)
-    grounded = True
+    grounded = bool(config.use_grounding)
     warning = None
     try:
-        response = client.models.generate_content(
-            model=config.model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-            ),
-        )
+        if config.use_grounding:
+            response = client.models.generate_content(
+                model=config.model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                ),
+            )
+        else:
+            response = client.models.generate_content(model=config.model, contents=prompt)
         raw_text = response.text or ""
     except Exception as e:
-        if not _is_quota_or_grounding_error(e):
+        if not config.use_grounding or not _is_quota_or_grounding_error(e):
             return {**empty, "error": f"Panggilan Gemini API gagal: {e}"}
         # Kuota Google Search grounding habis -- mundur ke generate_content
         # polos supaya fitur tetap berfungsi, dengan peringatan jujur (bukan
@@ -208,7 +217,7 @@ def suggest_sentiment_keywords(tickers: list[str], top_n: int = 5, config: Gemin
             # bukan bug format prompt.
             empty_error = "Gemini mengembalikan respons kosong (kemungkinan kuota API sedang tertekan) -- coba klik lagi beberapa saat lagi."
             return {
-                "error": f"{warning} {empty_error}" if warning else empty_error,
+                "error": empty_error,
                 "warning": warning,
                 "suggestions": [],
                 "raw_response": raw_text,

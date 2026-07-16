@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from routes import router as api_router
 from websocket import router as ws_router
+from src.cockpit.api import router as cockpit_router
 from src.database.database import engine, Base
 
 # Buat tabel database secara otomatis (jika belum ada) saat aplikasi startup
@@ -34,8 +35,9 @@ app.add_middleware(
 # Daftarkan routes (Endpoins)
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(ws_router, prefix="/ws")
+app.include_router(cockpit_router)
 
 # Otomatis arahkan ke halaman dokumentasi saat membuka alamat utama
 @app.get("/", include_in_schema=False)
 def root():
-    return RedirectResponse(url="/docs")
+    return RedirectResponse(url="/cockpit")
