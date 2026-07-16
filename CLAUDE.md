@@ -79,9 +79,16 @@ print(len(at.exception))  # harus 0
 - Committer identity saat ini: name `unknown`, email
   `syamsukri84@email.com` (typo, harusnya `gmail.com`) — belum
   dibetulkan, jangan otomatis "perbaiki" tanpa konfirmasi user.
-- Ada 2 remote: `origin` (ai-trading-dashboard) dan `sains`
-  (SAINS_DATA) — branch `main` track `sains/ai-trading-dashboard`.
-  Konfirmasi ke user remote mana yang dimaksud sebelum push.
+- Ada 2 remote: `origin` (repo khusus proyek ini, `ai-trading-dashboard.git`)
+  dan `sains` (repo lebih umum `SAINS_DATA.git`, kemungkinan wadah
+  tugas/proyek data science lain milik user). Sejak 2026-07-17, branch
+  `main` lokal **track `origin/main`** (bukan lagi `sains/ai-trading-dashboard`
+  seperti sebelumnya) — jadi `git push` polos sekarang ke `origin`.
+  `sains` disimpan di branch **`ai-trading-dashboard`** di repo itu (bukan
+  `main`), dan harus di-push manual/eksplisit kalau perlu disinkronkan:
+  `git push sains main:ai-trading-dashboard`. Kedua remote terakhir
+  disinkronkan penuh di commit `899b2d0` (2026-07-17) — cek ulang kalau
+  sudah lama, jangan asumsikan masih sejajar.
 
 ## 8. Folder/file yang BUKAN bagian aktif codebase (abaikan)
 
