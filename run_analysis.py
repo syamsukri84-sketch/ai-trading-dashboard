@@ -9,6 +9,7 @@ import yaml
 from data_loader import DataLoader
 from src.data_pipeline.feature_engineer import FeatureEngineer
 from src.models.garch_model import GARCHModel
+from src.models.var_analysis import compute_var_from_price_df
 from src.models.isolation_forest import IsolationForestModel
 from src.models.lstm_projector import LSTMPriceProjector
 from src.models.price_projector import PriceProjector
@@ -704,6 +705,14 @@ def run_full_analysis(
             garch_model.train(df)
             garch_projection = garch_model.predict(horizon=project_horizon)
 
+            # VaR multi-metodologi (historical/parametric/Cornish-Fisher/EWMA/
+            # MC bootstrap) ADITIF terhadap garch_projection di atas -- tidak
+            # menggantikan garch_var95_pct (dipertahankan untuk kompatibilitas
+            # ke belakang). Metode "direkomendasikan" berbeda per confidence
+            # level (Cornish-Fisher di 95%, rata-rata historical/MC-bootstrap
+            # di 99%) -- lihat docstring src/models/var_analysis.py untuk alasan.
+            var_suite = compute_var_from_price_df(df, confidence_levels=(0.95, 0.99), horizon_days=1)
+
             aligned_df = df.iloc[engineer.warmup_period:].copy()
             aligned_df["anomaly_score"] = results["anomaly_score"]
 
@@ -813,6 +822,14 @@ def run_full_analysis(
             print(f"   [Direction Ensemble H+1] {ensemble_direction['direction']} | Confidence {ensemble_direction['confidence_pct']:.2f}%")
             print(f"   [GARCH] Volatilitas: {garch_projection.get('projected_volatility_pct', 0.0):,.2f}% per hari")
             print(f"   [GARCH] VaR 95%    : {garch_projection.get('value_at_risk_95_pct', 0.0):,.2f}%")
+            if "error" not in var_suite:
+                _var95 = var_suite["per_confidence"][0.95]
+                _var99 = var_suite["per_confidence"][0.99]
+                _flag = " [DATA TERBATAS]" if var_suite.get("data_terbatas") else ""
+                print(f"   [VaR 95%] {_var95['recommended_pct']:.2f}% (metode: {_var95['recommended_method']}, n={var_suite['n_obs']}){_flag}")
+                print(f"   [VaR 99%] {_var99['recommended_pct']:.2f}% (metode: {_var99['recommended_method']}, n={var_suite['n_obs']}){_flag}")
+            else:
+                print(f"   [VaR] Tidak dihitung: {var_suite.get('error')}")
             print(f"   WALK-FORWARD vs BASELINE NAIF (edge asli, bukan akurasi mentah):")
             print(f"     H+1 arah : model={wf_direction_h1['direction_accuracy_pct']:.1f}% vs baseline={wf_direction_h1['baseline_majority_accuracy_pct']:.1f}% "
                   f"(edge={wf_direction_h1['edge_vs_baseline_pct']:+.1f}pp) -> {'ADA EDGE' if has_edge_h1 else 'TIDAK ADA EDGE NYATA'}")
@@ -883,6 +900,14 @@ def run_full_analysis(
                 "xai_return_h3": xai_return_h3,
                 "garch_volatility_pct": float(garch_projection.get("projected_volatility_pct", 0.0)),
                 "garch_var95_pct": float(garch_projection.get("value_at_risk_95_pct", 0.0)),
+                # VaR multi-metodologi (aditif, lihat src/models/var_analysis.py).
+                # None kalau data harga terlalu sedikit (n_obs < 10).
+                "var95_recommended_pct": var_suite.get("per_confidence", {}).get(0.95, {}).get("recommended_pct"),
+                "var95_recommended_method": var_suite.get("per_confidence", {}).get(0.95, {}).get("recommended_method"),
+                "var99_recommended_pct": var_suite.get("per_confidence", {}).get(0.99, {}).get("recommended_pct"),
+                "var99_recommended_method": var_suite.get("per_confidence", {}).get(0.99, {}).get("recommended_method"),
+                "var_n_obs": var_suite.get("n_obs"),
+                "var_data_terbatas": var_suite.get("data_terbatas", False),
             })
             if progress_callback:
                 progress_callback({
