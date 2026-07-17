@@ -1603,8 +1603,32 @@ def build_daily_decision_board(
                     f"avg {market_breadth['avg_latest_return_pct']:+.2f}%), jadi sinyal TURUN H+1 tidak langsung dipercaya."
                 )
             elif projected_return >= 1.0 and confidence >= min_confidence and direction == "NAIK" and risk_reward >= 1.0:
-                action = "BUY"
-                reason_parts.append("Prioritas H+3: potensi positif, H+1 mendukung, confidence tinggi, dan track record lolos batas.")
+                if unified_badge == "✅ Terverifikasi Ganda":
+                    action = "BUY"
+                    reason_parts.append("Prioritas H+3: potensi positif, H+1 mendukung, confidence tinggi, dan track record lolos batas.")
+                else:
+                    # PENTING: sebelum perbaikan ini, sinyal BUY (dengan entry/stop
+                    # loss/lot konkret) bisa tampil untuk ticker apa pun yang lolos
+                    # gate teknis di atas, TANPA syarat status "Verifikasi" ganda --
+                    # genuine_edge_lookup (dipakai gate "TIDAK ADA EDGE" di atas)
+                    # cuma aktif kalau user mencentang checkbox opt-in di tab ini,
+                    # defaultnya OFF. Padahal unified_badge (dari
+                    # compute_unified_trust_badge, dibangun dari edge_lookup_for_badge
+                    # yang SELALU diisi) sudah tersedia independen dari checkbox itu.
+                    # Ini melanggar Prinsip Desain #4 (STATUS_PROYEK_AI_TRADING.md):
+                    # "Prescriptive analytics HANYA untuk ticker Terverifikasi Ganda"
+                    # -- BUY adalah rekomendasi prescriptive paling actionable di
+                    # dashboard ini (dilengkapi entry/stop loss/lot), jadi gate ini
+                    # WAJIB berlaku selalu, bukan opsional lewat checkbox screening
+                    # edge yang terpisah. Diperbaiki 2026-07-17.
+                    action = "WATCH"
+                    reason_parts.append(
+                        f"Sinyal teknis mendukung BUY, tapi status verifikasi '{unified_badge}' belum "
+                        "'✅ Terverifikasi Ganda' (butuh LOLOS live trust audit DAN backtest walk-forward "
+                        "sekaligus). Sesuai Prinsip Desain #4 proyek ini, rekomendasi BUY dibatasi hanya "
+                        "untuk ticker yang lolos verifikasi ganda -- entry/stop loss di atas jadi referensi "
+                        "pemantauan, bukan sinyal siap eksekusi."
+                    )
             elif projected_return <= -1.0 or direction == "TURUN":
                 action = "AVOID"
                 reason_parts.append("Arah/potensi return belum mendukung entry.")
