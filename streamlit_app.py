@@ -42,6 +42,7 @@ from src.utils.mongo_store import check_mongo_status
 from src.utils.training_policy import evaluate_training_policy, evaluate_training_policy_by_model
 from src.utils.model_store import list_ticker_models, model_store_status
 from src.utils.user_feedback import load_user_feedback, log_user_feedback
+from src.utils.risk_metrics_log import get_latest_var95_lookup
 from src.trading.market_regime import compute_market_breadth, load_regime_history, log_regime_snapshot, summarize_regime_streaks
 from src.trading.personalization import apply_personalization, load_user_profile, mute_ticker, unmute_ticker
 from src.models.global_models import predict_with_global_models
@@ -1445,7 +1446,7 @@ def build_daily_decision_board(
     risk_per_trade_pct=1.0,
     genuine_edge_lookup=None,
     edge_lookup_for_badge=None,
-    volatility_lookup=None,
+    var95_lookup=None,
     sentiment_bias_lookup=None,
     xai_reason_lookup=None,
 ):
@@ -1549,23 +1550,33 @@ def build_daily_decision_board(
         trust_reason = str(trust_reason_lookup.get(ticker_code, "Track record H+1 belum cukup untuk menjadi acuan utama."))
         edge_for_badge = edge_lookup_for_badge.get(ticker_code) if edge_lookup_for_badge is not None else None
         unified_badge, unified_badge_reason = compute_unified_trust_badge(trust_status, edge_for_badge)
-        volatility_pct = volatility_lookup.get(ticker_code) if volatility_lookup is not None else None
+        var95_info = var95_lookup.get(ticker_code) if var95_lookup is not None else None
         sentiment_bias = sentiment_bias_lookup.get(ticker_code, "NEUTRAL") if sentiment_bias_lookup is not None else "NEUTRAL"
         xai_reason = xai_reason_lookup.get(ticker_code, "-") if xai_reason_lookup is not None else "-"
 
-        # SL sekarang mengikuti volatilitas GARCH harian ticker ini (bukan
-        # angka tetap -3%) -- disesuaikan sedikit oleh bias sentimen (stop
-        # lebih ketat kalau sentimen BEARISH bertentangan dengan sinyal).
-        # Kelipatan 1.5x dan batas 1.5%-8% adalah heuristik praktis (belum
-        # dioptimasi empiris terhadap data historis) supaya saham fluktuatif
-        # dapat ruang gerak wajar dan saham tenang tidak kena stop longgar.
-        if volatility_pct is not None and volatility_pct > 0:
+        # SL sekarang mengikuti VaR 95% ticker ini (metode "direkomendasikan"
+        # dari src/models/var_analysis.py -- Cornish-Fisher atau rata-rata
+        # historical+MC-bootstrap, tergantung skew/kurtosis data), bukan lagi
+        # volatilitas GARCH mentah (fallback lama, tidak pernah kepakai --
+        # lihat CATATAN_SESI_VAR_DAN_GATING_2026-07-17.md bagian 3.1/3.2).
+        # VaR 95% sudah berupa kuantil kerugian (bukan std dev mentah), jadi
+        # TIDAK dikalikan 1.5x lagi seperti formula GARCH lama -- cuma
+        # disesuaikan bias sentimen (stop lebih ketat kalau BEARISH bertentangan
+        # dengan sinyal). Batas 1.5%-8% tetap heuristik praktis (belum
+        # dioptimasi empiris) supaya saham fluktuatif dapat ruang gerak wajar
+        # dan saham tenang tidak kena stop longgar.
+        if var95_info is not None and var95_info.get("var95_pct", 0) > 0:
+            var95_pct = var95_info["var95_pct"]
             sentiment_multiplier = 0.85 if sentiment_bias == "BEARISH" else (1.1 if sentiment_bias == "BULLISH" else 1.0)
-            sl_distance_pct = min(max(volatility_pct * 1.5 * sentiment_multiplier, 1.5), 8.0)
-            sl_basis = f"volatilitas GARCH {volatility_pct:.2f}%/hari, sentimen {sentiment_bias.lower()}"
+            sl_distance_pct = min(max(var95_pct * sentiment_multiplier, 1.5), 8.0)
+            data_terbatas_flag = " [data terbatas]" if var95_info.get("data_terbatas") else ""
+            sl_basis = (
+                f"VaR 95% ({var95_info.get('var95_method', '-')}) {var95_pct:.2f}%/hari{data_terbatas_flag}, "
+                f"sentimen {sentiment_bias.lower()}"
+            )
         else:
             sl_distance_pct = 3.0
-            sl_basis = "default 3% (data volatilitas belum tersedia -- jalankan analisis dulu)"
+            sl_basis = "default 3% (data VaR belum tersedia -- jalankan analisis dulu)"
 
         target_h3 = current_price * (1 + projected_return / 100.0) if current_price > 0 else 0.0
         entry_low = current_price * 0.995 if current_price > 0 else 0.0
@@ -1648,6 +1659,7 @@ def build_daily_decision_board(
             "Harga Terakhir": current_price,
             "Entry Area": f"{entry_low:,.0f} - {entry_high:,.0f}" if current_price > 0 else "-",
             "Stop Loss": stop_loss,
+            "Basis SL": sl_basis,
             "Target H+3": target_h3,
             "Risk/Reward": risk_reward,
             "Lot Maks": int(sizing.get("lots", 0)),
@@ -2553,6 +2565,7 @@ with tab_daily:
         risk_per_trade_pct=float(risk_per_trade_pct),
         genuine_edge_lookup=genuine_edge_lookup,
         edge_lookup_for_badge=full_edge_lookup,
+        var95_lookup=get_latest_var95_lookup(),
     )
     decision_board_df = apply_personalization(decision_board_df)
 
@@ -2683,6 +2696,7 @@ with tab_daily:
                 "Harga Terakhir",
                 "Entry Area",
                 "Stop Loss",
+                "Basis SL",
                 "Target H+3",
                 "Risk/Reward",
                 "Lot Maks",
@@ -2705,6 +2719,7 @@ with tab_daily:
                 "Harga Terakhir",
                 "Entry Area",
                 "Stop Loss",
+                "Basis SL",
                 "Target H+3",
                 "Risk/Reward",
                 "Lot Maks",

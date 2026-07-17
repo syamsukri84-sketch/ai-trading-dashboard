@@ -10,6 +10,7 @@ from data_loader import DataLoader
 from src.data_pipeline.feature_engineer import FeatureEngineer
 from src.models.garch_model import GARCHModel
 from src.models.var_analysis import compute_var_from_price_df
+from src.utils.risk_metrics_log import log_risk_metrics
 from src.models.isolation_forest import IsolationForestModel
 from src.models.lstm_projector import LSTMPriceProjector
 from src.models.price_projector import PriceProjector
@@ -712,6 +713,19 @@ def run_full_analysis(
             # level (Cornish-Fisher di 95%, rata-rata historical/MC-bootstrap
             # di 99%) -- lihat docstring src/models/var_analysis.py untuk alasan.
             var_suite = compute_var_from_price_df(df, confidence_levels=(0.95, 0.99), horizon_days=1)
+
+            # Persist ke data/tracking/risk_metrics_log.csv supaya streamlit_app.py
+            # bisa membaca var95_recommended_pct kembali saat render dashboard
+            # (var_suite di atas cuma hidup di memori proses ini) -- lihat
+            # src/utils/risk_metrics_log.py dan bagian 3.1
+            # CATATAN_SESI_VAR_DAN_GATING_2026-07-17.md untuk alasan penuh.
+            log_risk_metrics(
+                ticker,
+                current_date_str,
+                garch_projection.get("projected_volatility_pct"),
+                garch_projection.get("value_at_risk_95_pct"),
+                var_suite,
+            )
 
             aligned_df = df.iloc[engineer.warmup_period:].copy()
             aligned_df["anomaly_score"] = results["anomaly_score"]

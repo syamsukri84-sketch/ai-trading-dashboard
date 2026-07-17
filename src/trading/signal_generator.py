@@ -1,3 +1,18 @@
+"""Generator sinyal berbasis anomaly score + regime + RSI, dengan stop-loss
+2x ATR.
+
+STATUS (2026-07-17): hanya dipanggil oleh `routes.py` (jalur FastAPI
+eksperimental, lihat peringatan di puncak `fastapi_app.py` -- TIDAK PERNAH
+dipanggil `streamlit_app.py`, dashboard produksi sesungguhnya). Bukan bagian
+dari "satu sumber kebenaran" stop-loss dashboard (itu sekarang VaR 95%, lihat
+`streamlit_app.py::build_daily_decision_board` + `src/models/var_analysis.py`
++ `src/utils/risk_metrics_log.py`). Dipertahankan apa adanya (bukan dihapus,
+bukan diintegrasikan) karena skema sinyalnya (anomaly-score+RSI, bukan
+prediksi return/arah ML) adalah pendekatan berbeda sepenuhnya dari
+`build_daily_decision_board`, bukan cuma beda rumus stop-loss -- integrasi
+penuh butuh keputusan desain terpisah, bukan tugas rekonsiliasi stop-loss ini.
+Lihat CATATAN_SESI_VAR_DAN_GATING_2026-07-17.md bagian 3.2."""
+
 import logging
 from typing import Dict, Any, Union
 
