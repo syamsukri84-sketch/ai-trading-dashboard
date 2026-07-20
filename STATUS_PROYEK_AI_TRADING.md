@@ -1,6 +1,6 @@
 # Status Proyek AI Trading — Baca Ini Dulu
 
-**Terakhir diperbarui**: 2026-07-14
+**Terakhir diperbarui**: 2026-07-21
 **Tujuan file ini**: supaya siapa pun (Anda, atau AI assistant lain di VSCode -- Copilot,
 Cursor, Claude, dll) bisa langsung paham cara kerja sistem ini dan apa yang sudah
 dikerjakan TANPA harus membaca ulang seluruh ~14.600 baris kode dari nol. Baca file
@@ -329,6 +329,59 @@ respons, deteksi error kuota, fallback grounding->non-grounding, error non-kuota
 Verifikasi akhir: py_compile bersih, **170 test lulus** (dari 147, +23 baru), AppTest
 0 exception (dengan dan tanpa GEMINI_API_KEY).
 
+### VaR multi-metodologi + fix gating + wiring stop-loss (2026-07-17, commit `6ed4c7a`/`30951b0`/`a52b4de`)
+Dikerjakan sesi sebelumnya. Ringkas dari commit message (belum diverifikasi ulang detail
+implementasi di sesi 2026-07-21, cek `git show <hash>` kalau perlu detail):
+- `6ed4c7a`: analisis VaR multi-metodologi (historical/parametric/Cornish-Fisher/EWMA/MC
+  bootstrap).
+- `30951b0`: perbaikan bug sinyal BUY yang bisa lolos ke papan keputusan harian tanpa
+  status "✅ Terverifikasi Ganda" (pelanggaran gate).
+- `a52b4de`: VaR di-wire ke stop-loss; heuristik lama berbasis GARCH-volatility yang
+  ternyata rusak di-retire.
+
+### Fitur baru: Expected Range Probabilistik + evaluasi kalibrasi probabilitas (2026-07-21, commit `1b6088d`)
+Prescriptive-analytics-adjacent (proyeksi RENTANG risiko, bukan arah -- konsisten dengan
+temuan 0/265 ticker punya edge arah).
+
+**`src/trading/interval_forecaster.py`** (modul baru): sigma harian EWMA (RiskMetrics
+lambda=0.94), `expected_range()` (rentang kewajaran statistik terkalibrasi dari
+`last_close * (1 -/+ k*sigma*sqrt(H))` -- eksplisit BUKAN target harga/sinyal arah),
+`calibrate_k()` (kalibrasi walk-forward point-in-time lintas-universe per horizon, hasil
+dibekukan ke `data/interval_calibration.csv` -- **158 ticker likuid, 141k+ observasi**,
+k=1.2-1.3 untuk coverage 80%, k=2.3 untuk coverage 95% di horizon 1-10 hari bursa),
+`log_issued_interval()`/`evaluate_interval_log()` (monitoring coverage terealisasi,
+atomic write, status OK/RESTRICTED/BELUM CUKUP DATA), dan `position_size_from_range()`
+(sizing berbasis jarak ke batas bawah interval -- **wajib** berlabel SIMULASI/PAPER untuk
+ticker yang belum "✅ Terverifikasi Ganda", prinsip desain #4 tetap dipatuhi).
+`scripts/calibrate_intervals_cli.py` -- CLI rekalibrasi manual (kuartalan atau saat
+monitoring RESTRICTED), **bukan** bagian workflow harian.
+
+**`src/trading/probability_calibration.py`** (modul baru, lapisan evaluasi murni):
+`compute_brier_by_model()`/`reliability_table()` dari join `predictions_log.csv` x
+`accuracy_log.csv`. Temuan baseline (7.250 prediksi ber-prob_up): **semua model Brier
+skill negatif**, bias pesimis sistematis (prob_up rata-rata 0.34 vs realisasi naik 51%)
+-- probabilitas mentah model belum layak dipakai sebagai derajat keyakinan.
+`get_brier_weights()` + prototipe rekalibrasi (`fit_recalibrator` shift/Platt) dengan
+`walk_forward_recalibration_validation()` tersedia untuk eksperimen, **TIDAK**
+menggantikan pembobot ensemble produksi (`reliability_ensemble.get_reliability_weights`)
+-- itu perubahan model, wajib revalidasi walk-forward dulu (prinsip desain #3).
+
+**UI** (`streamlit_app.py`, tab Ringkasan Harian > detail per saham): section baru
+"📏 Expected Range Probabilistik" -- tabel band 80%/95% per horizon H+1/3/5/10, sizing
+volatilitas (referensi batas bawah band 80% H+10), tombol "Catat interval ke log
+monitoring". Dibungkus try/except supaya tidak pernah menjatuhkan dashboard kalau data
+harga lokal ticker belum ada/kurang dari 60 hari.
+
+Verifikasi sesi 2026-07-21: py_compile bersih, **212 test lulus** (dari 170, +42:
+termasuk +21 `test_interval_forecaster.py`/`test_probability_calibration.py`, sisanya
+dari sesi VaR 07-17 yang belum tercatat di doc ini), AppTest 0 exception.
+
+**Belum dikerjakan lanjutan** (kandidat, belum diminta user): `probability_calibration.py`
+baru lapisan evaluasi, belum ada keputusan apakah rekalibrasi "shift" akan dipromosikan ke
+produksi (butuh walk-forward LULUS konsisten di banyak model dulu); coverage
+`interval_log.csv` masih kosong di awal (fitur baru dipasang) -- monitoring baru bermakna
+setelah >=30 interval H+10 terlewati (~1.5 bulan bursa berjalan).
+
 ## 5. Apa yang BELUM dikerjakan -- prioritas & alasan
 
 ### Prescriptive Analytics -- BELUM DIMULAI SAMA SEKALI
@@ -393,12 +446,16 @@ untuk fungsi orchestrator utuh (butuh fixture data + mocking, effort lebih besar
 
 ## 7. Status git & cara verifikasi sebelum lanjut kerja
 
-- Branch `main`, commit terakhir `7f4c28b`. **Banyak perubahan uncommitted** (termasuk
-  seluruh pekerjaan sesi 2026-07-12 di atas) -- cek `git status` sebelum mengasumsikan
-  apa yang "resmi" masuk kode.
+- Branch `main`, commit terakhir `2744c58` (per 2026-07-21). **Lokal 5 commit di depan
+  `origin/main`, belum di-push** -- termasuk fix VaR/gating (07-17) dan fitur Expected
+  Range + refresh data (07-21). Cek `git status`/`git log origin/main..HEAD` sebelum
+  mengasumsikan apa yang sudah tersinkron ke remote; jangan push otomatis tanpa
+  konfirmasi user (lihat CLAUDE.md proyek).
+- Folder `test-1/` (root proyek ini) sengaja **tidak** di-track git -- tugas valuasi
+  ACES/AKRA/BUMI/LPPF terpisah, lihat memory assistant kalau perlu konteks.
 - Sebelum mengubah kode lebih lanjut, jalankan baseline ini dulu:
   ```
-  python -m pytest -q                    # harus 143 lulus (per 2026-07-12)
+  python -m pytest -q                    # harus 212 lulus (per 2026-07-21)
   python -m py_compile streamlit_app.py run_analysis.py
   ```
 - Smoke test dashboard tanpa perlu browser (lebih reliable dari `curl`, karena benar-
