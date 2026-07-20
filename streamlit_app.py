@@ -2877,6 +2877,66 @@ with tab_daily:
                         "berguna untuk saham yang tidak relevan buat Anda, terlepas dari sinyal modelnya."
                     )
 
+                st.markdown("---")
+                st.markdown("**📏 Expected Range Probabilistik (EWMA terkalibrasi -- BUKAN target harga)**")
+                try:
+                    from src.trading.interval_forecaster import (
+                        compute_ewma_sigma,
+                        expected_range,
+                        load_k_table,
+                        log_issued_interval,
+                        position_size_from_range,
+                    )
+
+                    _ivl_raw_path = project_path("data", "raw", f"{detail_ticker_choice}_raw.csv")
+                    if not os.path.exists(_ivl_raw_path):
+                        st.caption("Data harga lokal ticker ini belum ada di data/raw -- jalankan update harga dulu.")
+                    else:
+                        _ivl_px = pd.read_csv(_ivl_raw_path)
+                        _ivl_close = pd.to_numeric(_ivl_px.get("close"), errors="coerce").dropna()
+                        if len(_ivl_close) < 60:
+                            st.caption("Riwayat harga < 60 hari -- sigma EWMA belum stabil, rentang tidak ditampilkan.")
+                        else:
+                            _ivl_sigma = compute_ewma_sigma(_ivl_close)
+                            _ivl_last = float(_ivl_close.iloc[-1])
+                            _ivl_date = str(_ivl_px["timestamp"].iloc[-1]) if "timestamp" in _ivl_px.columns else "?"
+                            _ivl_rows = []
+                            for _ivl_h in (1, 3, 5, 10):
+                                _ivl_kh = load_k_table(BASE_DIR, horizon_days=_ivl_h)
+                                _ivl_row = {"Horizon": f"H+{_ivl_h} hari bursa"}
+                                for _ivl_t, _ivl_kv in sorted(_ivl_kh.items()):
+                                    _lo, _hi = expected_range(_ivl_last, _ivl_sigma, _ivl_h, _ivl_kv)
+                                    _ivl_row[f"Band {int(_ivl_t * 100)}% (k={_ivl_kv})"] = f"{_lo:,.0f} - {_hi:,.0f}"
+                                _ivl_rows.append(_ivl_row)
+                            _ivl_k = load_k_table(BASE_DIR, horizon_days=10)
+                            st.dataframe(pd.DataFrame(_ivl_rows), hide_index=True, width="stretch")
+                            st.caption(
+                                f"Basis: close {_ivl_last:,.0f} ({_ivl_date}), sigma harian EWMA {_ivl_sigma * 100:.2f}%. "
+                                "Rentang kewajaran statistik dengan coverage terkalibrasi lintas-universe -- bukan sinyal arah, "
+                                "bukan target. Kalibrasi k dibekukan di data/interval_calibration.csv (fallback: default universe 2026-07-20)."
+                            )
+                            _ivl_verified = "Terverifikasi Ganda" in str(detail_row.get("Verifikasi", ""))
+                            _ivl_size = position_size_from_range(
+                                20_000_000, 1.0, _ivl_last, _ivl_sigma, 10, sorted(_ivl_k.items())[0][1], _ivl_verified
+                            )
+                            st.caption(
+                                f"Sizing volatilitas ({_ivl_size['mode']}): risk budget 1% x Rp20 juta -> "
+                                f"maks {_ivl_size['lots']} lot (referensi batas bawah band 80% H+10 = {_ivl_size.get('stop_reference', 0):,.0f}). "
+                                + ("" if _ivl_verified else "Berstatus SIMULASI karena ticker belum '✅ Terverifikasi Ganda' (prinsip desain #4).")
+                            )
+                            if st.button(
+                                "📝 Catat interval H+10 ke log monitoring",
+                                key=f"ivl_log_{detail_ticker_choice}",
+                                help="Menambah 1 baris ke data/interval_log.csv (atomic, dedup per ticker+tanggal). "
+                                "Setelah >=30 interval melewati horizonnya, coverage aktual bisa diuji dari log ini.",
+                            ):
+                                log_issued_interval(
+                                    detail_ticker_choice, _ivl_date, _ivl_last, _ivl_sigma, 10, _ivl_k, BASE_DIR
+                                )
+                                st.success("Interval tercatat ke data/interval_log.csv.")
+                except Exception as _ivl_err:  # jangan pernah menjatuhkan dashboard karena fitur presentasi
+                    st.caption(f"Expected range tidak tersedia: {_ivl_err}")
+
         buy_plan_df = decision_board_df[decision_board_df["Sinyal"].astype(str).str.contains("BUY", regex=False)].copy()
         if buy_plan_df.empty:
             st.info("Belum ada kandidat BUY trusted. Fokus besok: pantau watchlist, evaluasi data, atau tunggu track record model bertambah.")
