@@ -875,7 +875,10 @@ else:
 offline_mode = not price_update_online
 sentiment_online_enabled = external_services_enabled and price_update_online
 launch_snapshot = build_launch_sync_snapshot(tickers)
-render_launch_sync_snapshot(launch_snapshot, operation_mode)
+with st.expander("📡 Status data & sinkronisasi saat aplikasi dibuka", expanded=False):
+    # Dilipat default (2026-07-21): ringkasan kesehatan harian kini ada di strip 🩺 Beranda,
+    # detail lengkap tetap tersedia di sini tanpa memenuhi layar.
+    render_launch_sync_snapshot(launch_snapshot, operation_mode)
 
 with st.sidebar.expander("Status Sinkronisasi", expanded=True):
     st.metric("Data Lokal", f"{launch_snapshot['raw_count']}/{launch_snapshot['total_tickers']}")
@@ -985,15 +988,41 @@ if st.sidebar.button("🔄 Refresh Data Sekarang", help="Bersihkan cache dan mua
     st.cache_data.clear()
     st.rerun()
 
-# --- TABS UTAMA: alur harian dulu, kontrol lanjutan setelahnya ---
-tab_beranda, tab_daily, tab_update, tab_ranking, tab_accuracy, tab_sentiment = st.tabs([
-    "🏠 Beranda",
-    "Ringkasan Harian",
-    "Workflow Harian",
-    "Ranking Mentah (Riset)",
-    "Akurasi Model",
-    "Sentimen Pasar",
-])
+# --- NAVIGASI HALAMAN (2026-07-21): 6 tab -> 4 halaman sidebar ---
+# Beda mendasar dari st.tabs: hanya halaman TERPILIH yang dieksekusi (bukan
+# sekadar disembunyikan) -- sumber percepatan utama. Peta dependensi antar
+# blok diverifikasi via AST dan dijaga tests/test_page_navigation_static.py:
+# tab_beranda BERGANTUNG pada tab_daily (decision_board_df, daily_readiness,
+# regime_streak, recent_jobs) -> keduanya satu halaman "Keputusan"; tab_daily
+# dieksekusi lebih dulu tetapi TAMPIL di bawah (urutan diatur container).
+# Blok lain terbukti mandiri.
+NAV_PAGES = ["🏠 Keputusan", "🔬 Riset & Akurasi", "⚙️ Operasional", "📰 Sentimen Pasar"]
+_nav_page = st.sidebar.radio(
+    "Halaman",
+    NAV_PAGES,
+    index=0,
+    help=(
+        "Keputusan = Beranda + Ringkasan Harian (papan keputusan & detail per saham). "
+        "Riset & Akurasi = ranking mentah + akurasi model. Operasional = workflow harian & update data. "
+        "Hanya halaman terpilih yang dijalankan, jadi pindah halaman lebih ringan."
+    ),
+)
+_show_keputusan = _nav_page == NAV_PAGES[0]
+_show_riset = _nav_page == NAV_PAGES[1]
+_show_operasional = _nav_page == NAV_PAGES[2]
+_show_sentimen = _nav_page == NAV_PAGES[3]
+
+tab_beranda = tab_daily = tab_update = tab_ranking = tab_accuracy = tab_sentiment = None
+if _show_keputusan:
+    tab_beranda = st.container()  # slot atas: Beranda (diisi setelah tab_daily dihitung)
+    tab_daily = st.container()  # slot bawah: Ringkasan Harian (dieksekusi lebih dulu)
+elif _show_riset:
+    tab_ranking = st.container()
+    tab_accuracy = st.container()
+elif _show_operasional:
+    tab_update = st.container()
+elif _show_sentimen:
+    tab_sentiment = st.container()
 tab_dashboard = None
 tab_final = None
 
@@ -1464,6 +1493,30 @@ def compute_unified_trust_badge(status_trust, has_genuine_edge):
     if not live_ok and has_genuine_edge is True:
         return "⚠️ Backtest OK, Live Kurang", "Lolos backtest walk-forward, tapi track record live belum cukup/trusted."
     return "❌ Belum Lolos Verifikasi", "Belum lolos live trust audit maupun backtest walk-forward."
+
+
+def decision_label(badge):
+    """Terjemahan badge verifikasi ke bahasa keputusan (untuk tampilan ringkas).
+
+    Nilai internal badge TIDAK diubah (dipakai perbandingan di banyak tempat);
+    fungsi ini hanya lapisan penyajian.
+    """
+    b = str(badge)
+    if b.startswith("✅"):
+        return "✅ Boleh dipertimbangkan"
+    if b.startswith("⚠️"):
+        return "⚠️ Tunggu — bukti belum lengkap"
+    return "❌ Jangan diikuti dulu"
+
+
+def _info_popover(label, body):
+    """Penjelasan panjang di balik tombol kecil (popover) -- layar tetap bersih.
+    Fallback caption biasa untuk Streamlit lama."""
+    if hasattr(st, "popover"):
+        with st.popover(label):
+            st.markdown(body)
+    else:
+        st.caption(body)
 
 
 def render_interactive_accuracy_trend(df, x_col, y_col, color_col, title=""):
@@ -2554,7 +2607,8 @@ def render_background_analysis_job(job_id):
         st.error(status.get("error") or "Job background gagal tanpa detail error.")
 
 
-with tab_daily:
+if _show_keputusan:
+  with tab_daily:
     st.header("Dashboard Harian Global Model")
     st.write(
         "Gunakan alur sederhana setelah market close: update data, evaluasi prediksi pending, "
@@ -3081,12 +3135,23 @@ def render_daily_workflow_summary(summary):
             st.dataframe(pd.DataFrame(details), width="stretch", hide_index=True)
 
 
-with tab_beranda:
+if _show_keputusan:
+  with tab_beranda:
     st.header("🏠 Beranda")
     st.caption(
         "Satu pandangan ringkas untuk semua yang penting hari ini -- kalau cuma sempat buka satu tab, "
         "buka ini. Detail lengkap tetap ada di tab lain (Ringkasan Harian, Akurasi Model, Sentimen Pasar)."
     )
+    try:
+        _hs_run = get_latest_daily_workflow_run() or {}
+        _hs_data = daily_readiness.get("latest_data", "-") if "daily_readiness" in dir() or "daily_readiness" in globals() else "-"
+        st.caption(
+            f"🩺 Kesehatan sistem — data terakhir: **{_hs_data}** · "
+            f"workflow harian terakhir: **{_hs_run.get('status', 'BELUM ADA')}** · "
+            f"mode tampilan: **{display_mode}**"
+        )
+    except Exception:
+        pass
 
     if decision_board_df.empty:
         st.info("Belum ada data prediksi untuk ditampilkan. Jalankan Workflow Harian terlebih dahulu.")
@@ -3111,21 +3176,93 @@ with tab_beranda:
         )
         k4.metric("Data Terakhir", daily_readiness.get("latest_data", "-"))
 
+        # Top Picks dilebur ke Papan Keputusan (duplikasi daftar dihapus 2026-07-21):
+        # kandidat BUY + Terverifikasi Ganda kini otomatis tampil paling atas papan (⭐).
+        _n_top_picks = int((buy_mask & verified_mask).sum()) if has_verifikasi else 0
+
         st.divider()
-        st.subheader("🎯 Top Picks (Sinyal BUY + Terverifikasi Ganda)")
-        st.caption(
-            "Bukan daftar semua saham -- cuma yang lolos DUA syarat sekaligus: sinyal BUY dan sudah "
-            "terverifikasi lewat live track record MAUPUN backtest walk-forward."
-        )
-        top_picks_df = decision_board_df[buy_mask & verified_mask].copy() if has_verifikasi else pd.DataFrame()
-        if top_picks_df.empty:
-            st.info(
-                "Belum ada ticker yang memenuhi kedua syarat sekaligus saat ini -- ini bukan error, "
-                "memang tidak selalu ada peluang berkualitas tinggi tiap hari."
+        st.subheader("🧭 Papan Keputusan Hari Ini")
+        _pk_col1, _pk_col2 = st.columns([3, 1])
+        with _pk_col1:
+            st.caption(
+                f"Top picks (BUY + ✅ Terverifikasi Ganda): **{_n_top_picks}** — otomatis di urutan teratas (⭐). "
+                "Fokus H+1, bahasa keputusan."
             )
-        else:
-            top_pick_cols = [c for c in ["Saham", "Sinyal", "Entry Area", "Stop Loss", "Target H+3", "Verifikasi", "Alasan Utama"] if c in top_picks_df.columns]
-            st.dataframe(top_picks_df[top_pick_cols], width="stretch", hide_index=True)
+        with _pk_col2:
+            _info_popover(
+                "ℹ️ Cara membaca",
+                "**Keputusan**: ✅ Boleh dipertimbangkan (lolos live + backtest) · ⚠️ Tunggu — bukti belum "
+                "lengkap · ❌ Jangan diikuti dulu.\n\n"
+                "**Rentang wajar H+1 (80%)**: interval 80% terkalibrasi dari volatilitas EWMA — BUKAN target "
+                "harga dan BUKAN sinyal arah.\n\n"
+                "**Maks lot (risk 1%)**: risk budget 1% dari ekuitas simulasi Rp20 juta; berlabel (simulasi) "
+                "selama ticker belum '✅ Terverifikasi Ganda'.\n\n"
+                "Multi-horizon (H+3/H+5/H+10) dan detail lengkap: tab Ringkasan Harian → Detail Per Saham.",
+            )
+        try:
+            from src.trading.interval_forecaster import (
+                compute_ewma_sigma as _bd_sigma_fn,
+                expected_range as _bd_range_fn,
+                load_k_table as _bd_load_k,
+                position_size_from_range as _bd_size_fn,
+            )
+
+            _bd_k1_80 = sorted(_bd_load_k(BASE_DIR, horizon_days=1).items())[0][1]
+            _bd_k10_80 = sorted(_bd_load_k(BASE_DIR, horizon_days=10).items())[0][1]
+            _bd_src = decision_board_df.copy()
+            _bd_src["_toppick"] = (buy_mask & verified_mask) if has_verifikasi else False
+            _bd_src = _bd_src.sort_values("_toppick", ascending=False, kind="stable").head(10)
+            _bd_rows = []
+            for _, _bd_r in _bd_src.iterrows():
+                _bd_tk = str(_bd_r.get("Saham", "")).upper()
+                _bd_range_txt = "-"
+                _bd_lot_txt = "-"
+                _bd_fp = project_path("data", "raw", f"{_bd_tk}_raw.csv")
+                if _bd_tk and os.path.exists(_bd_fp):
+                    try:
+                        _bd_close = pd.to_numeric(cached_read_csv(_bd_fp).get("close"), errors="coerce").dropna()
+                        if len(_bd_close) >= 60:
+                            _bd_sig = _bd_sigma_fn(_bd_close)
+                            _bd_last = float(_bd_close.iloc[-1])
+                            _bd_lo, _bd_hi = _bd_range_fn(_bd_last, _bd_sig, 1, _bd_k1_80)
+                            _bd_range_txt = f"{_bd_lo:,.0f} - {_bd_hi:,.0f}"
+                            _bd_verified = str(_bd_r.get("Verifikasi", "")).startswith("✅")
+                            _bd_size = _bd_size_fn(
+                                20_000_000, 1.0, _bd_last, _bd_sig, 10, _bd_k10_80, _bd_verified
+                            )
+                            _bd_lot_txt = f"{_bd_size['lots']} lot" + ("" if _bd_verified else " (simulasi)")
+                    except Exception:
+                        pass
+                _bd_rows.append(
+                    {
+                        "⭐": "⭐" if bool(_bd_r.get("_toppick", False)) else "",
+                        "Saham": _bd_tk,
+                        "Keputusan": decision_label(_bd_r.get("Verifikasi", "")),
+                        "Sinyal": _bd_r.get("Sinyal", "-"),
+                        "Rentang wajar H+1 (80%)": _bd_range_txt,
+                        "Maks lot (risk 1%)": _bd_lot_txt,
+                        "Alasan Utama": _bd_r.get("Alasan Utama", "-"),
+                    }
+                )
+            st.dataframe(
+                pd.DataFrame(_bd_rows),
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "⭐": st.column_config.TextColumn("⭐", width="small", help="Top pick: BUY + Terverifikasi Ganda"),
+                    "Saham": st.column_config.TextColumn("Saham", width="small"),
+                    "Keputusan": st.column_config.TextColumn("Keputusan", width="medium"),
+                    "Rentang wajar H+1 (80%)": st.column_config.TextColumn(
+                        "Rentang wajar H+1 (80%)", help="Interval 80% terkalibrasi (EWMA) — bukan target harga."
+                    ),
+                    "Maks lot (risk 1%)": st.column_config.TextColumn(
+                        "Maks lot (risk 1%)", help="Risk 1% × Rp20 juta simulasi; (simulasi) = belum Terverifikasi Ganda."
+                    ),
+                    "Alasan Utama": st.column_config.TextColumn("Alasan Utama", width="large"),
+                },
+            )
+        except Exception as _bd_err:
+            st.caption(f"Papan ringkas tidak tersedia: {_bd_err}")
 
         st.divider()
         st.subheader("⚠️ Peringatan")
@@ -3166,7 +3303,8 @@ with tab_beranda:
         )
 
 
-with tab_update:
+if _show_operasional:
+  with tab_update:
     st.header("Workflow Harian Trading")
     st.write("Jalankan proses harian secara berurutan agar data harga, prediksi, ranking, dan akurasi tetap sinkron.")
     st.caption("Gunakan workflow lengkap untuk operasi harian. Panel teknis di bawah tetap tersedia untuk update harga saja, import CSV, audit, dan backfill.")
@@ -4294,7 +4432,8 @@ with tab_update:
         st.subheader("Ringkasan Analisis Ulang Otomatis")
         render_analysis_summary(analysis_summary)
 
-with tab_ranking:
+if _show_riset:
+  with tab_ranking:
     st.header("Ranking Mentah (Riset)")
     if display_mode == "Pemula":
         st.info(
@@ -4543,7 +4682,8 @@ with tab_ranking:
             st.warning("Belum ada data prediksi yang disimpan. Jalankan prediksi Global Model dari tab Workflow Harian atau CLI global.")
 
 
-with tab_sentiment:
+if _show_sentimen:
+  with tab_sentiment:
     st.header("Analisis Sentimen Isu Pasar Modal")
     st.write("Menilai kecenderungan sentimen isu atau berita per emiten sebagai sinyal eksternal pendukung analisis teknikal.")
 
@@ -4923,7 +5063,8 @@ with tab_sentiment:
         except Exception as e:
             st.error(f"Gagal memproses data sentimen: {e}")
 
-with tab_accuracy:
+if _show_riset:
+  with tab_accuracy:
     st.header("Track Record & Akurasi Model")
     st.write("Mengevaluasi prediksi sebelumnya berdasarkan pergerakan harga aktual.")
     st.caption("Default memakai prediksi arah H+1. Data evaluasi lama tetap bisa dilihat melalui pilihan jenis evaluasi.")
