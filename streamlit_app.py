@@ -62,6 +62,64 @@ def project_path(*parts):
     return os.path.join(BASE_DIR, *parts)
 
 
+# --- Paket performa ringan (2026-07-21): cache baca CSV, fragment, limit tabel ---
+
+def _file_mtime(path):
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0.0
+
+
+@st.cache_data(show_spinner=False, max_entries=64)
+def _cached_read_csv_inner(path, mtime, kwargs_items):
+    # mtime ikut jadi cache key: file berubah -> cache otomatis invalid.
+    return pd.read_csv(path, **dict(kwargs_items))
+
+
+def cached_read_csv(path, **kwargs):
+    """pd.read_csv ber-cache dengan invalidasi otomatis berbasis mtime file.
+
+    Hanya untuk file di disk dengan kwargs hashable (bukan lambda/objek upload).
+    Tombol sidebar "Refresh Data Sekarang" tetap bisa memaksa bersih total.
+    """
+    return _cached_read_csv_inner(path, _file_mtime(path), tuple(sorted(kwargs.items())))
+
+
+def _st_fragment(func):
+    """st.fragment bila tersedia (interaksi kecil tidak me-rerun seluruh app);
+    fallback aman = fungsi biasa untuk Streamlit lama."""
+    if hasattr(st, "fragment"):
+        return st.fragment(func)
+    return func
+
+
+def render_limited_dataframe(df, key, top_n=30, format_map=None, caption=None, **st_kwargs):
+    """Tampilkan maksimal top_n baris + tombol unduh CSV lengkap.
+
+    Mencegah render tabel ribuan baris (mahal di browser) tanpa menghilangkan
+    akses ke data penuh.
+    """
+    if df is None or len(df) == 0:
+        st.caption("Tidak ada data untuk ditampilkan.")
+        return
+    total = len(df)
+    shown = df.head(top_n) if total > top_n else df
+    view = shown.style.format(format_map) if format_map else shown
+    st.dataframe(view, **st_kwargs)
+    if total > top_n:
+        st.caption(
+            f"Menampilkan {len(shown)} dari {total:,} baris.".replace(",", ".")
+            + (f" {caption}" if caption else "")
+        )
+        st.download_button(
+            "⬇️ Unduh CSV lengkap",
+            df.to_csv(index=False).encode("utf-8"),
+            file_name=f"{key}.csv",
+            key=f"dl_{key}",
+        )
+
+
 def get_dashboard_password():
     env_password = os.getenv("AI_TRADING_DASHBOARD_PASSWORD", "").strip()
     if env_password:
@@ -585,6 +643,7 @@ def render_app_header():
     )
 
 
+@st.cache_data(show_spinner=False, ttl=120)
 def build_launch_sync_snapshot(ticker_list):
     total_tickers = len(ticker_list)
     raw_dir = project_path("data", "raw")
@@ -621,7 +680,7 @@ def build_launch_sync_snapshot(ticker_list):
     latest_prediction_date = "-"
     if os.path.exists(pred_path) and os.path.getsize(pred_path) > 0:
         try:
-            pred_df = pd.read_csv(pred_path)
+            pred_df = cached_read_csv(pred_path)
             pred_rows = len(pred_df)
             status = pred_df.get("status", pd.Series(dtype=str)).astype(str).str.upper().str.strip()
             is_active = pred_df.get("is_active", pd.Series([True] * len(pred_df))).astype(str).str.lower().isin(["true", "1", "yes"])
@@ -1112,6 +1171,7 @@ def normalize_ticker_code(ticker_code):
     return str(ticker_code or "").replace(".JK", "").upper().strip()
 
 
+@st.cache_data(show_spinner=False, ttl=60)
 def load_prediction_log(pred_file=None):
     pred_file = pred_file or project_path("data", "tracking", "predictions_log.csv")
     if not os.path.exists(pred_file):
@@ -1842,7 +1902,7 @@ def get_adaptive_min_evaluation_default(
     if not os.path.exists(accuracy_file) or os.path.getsize(accuracy_file) == 0:
         return 20
     try:
-        acc_df = pd.read_csv(accuracy_file)
+        acc_df = cached_read_csv(accuracy_file)
     except Exception:
         return 20
     if acc_df.empty:
@@ -1877,7 +1937,7 @@ def build_model_evaluation_sample_status(
     if not os.path.exists(accuracy_file) or os.path.getsize(accuracy_file) == 0:
         return pd.DataFrame()
     try:
-        acc_df = pd.read_csv(accuracy_file)
+        acc_df = cached_read_csv(accuracy_file)
     except Exception:
         return pd.DataFrame()
     if acc_df.empty:
@@ -1929,7 +1989,7 @@ def build_system_sync_status(selected_tickers, required_models=None):
     accuracy_path = project_path("data", "tracking", "accuracy_log.csv")
     try:
         accuracy_df = (
-            pd.read_csv(accuracy_path)
+            cached_read_csv(accuracy_path)
             if os.path.exists(accuracy_path) and os.path.getsize(accuracy_path) > 0
             else pd.DataFrame()
         )
@@ -2054,7 +2114,7 @@ def audit_and_repair_local_ohlc(selected_tickers, data_dir="data/raw", apply_rep
             continue
 
         try:
-            df = _normalize_existing_data(pd.read_csv(file_path))
+            df = _normalize_existing_data(cached_read_csv(file_path))
             for col in ["open", "high", "low", "close"]:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
 
@@ -2834,17 +2894,22 @@ with tab_daily:
                     "Umpan balik ini TIDAK mengubah prediksi model -- hanya tersimpan sebagai jurnal keputusan "
                     "Anda sendiri (dan dasar personalisasi tampilan di masa depan)."
                 )
-                fb_col1, fb_col2, fb_col3, fb_col4 = st.columns(4)
-                fb_actions = [
-                    (fb_col1, "✅ Saya Ikuti", "IKUTI"),
-                    (fb_col2, "⏭ Saya Lewati", "LEWATI"),
-                    (fb_col3, "👍 Berguna", "BERGUNA"),
-                    (fb_col4, "👎 Tidak Berguna", "TIDAK_BERGUNA"),
-                ]
-                for fb_col, fb_label, fb_action in fb_actions:
-                    if fb_col.button(fb_label, key=f"fb_{fb_action}_{detail_ticker_choice}"):
-                        log_user_feedback(detail_ticker_choice, detail_row["Sinyal"], fb_action)
-                        st.success(f"Tersimpan: {fb_label}")
+                @_st_fragment
+                def _render_feedback_buttons(fb_ticker=detail_ticker_choice, fb_signal=detail_row["Sinyal"]):
+                    # Fragment: klik tombol umpan balik tidak me-rerun seluruh dashboard.
+                    fb_col1, fb_col2, fb_col3, fb_col4 = st.columns(4)
+                    fb_actions = [
+                        (fb_col1, "✅ Saya Ikuti", "IKUTI"),
+                        (fb_col2, "⏭ Saya Lewati", "LEWATI"),
+                        (fb_col3, "👍 Berguna", "BERGUNA"),
+                        (fb_col4, "👎 Tidak Berguna", "TIDAK_BERGUNA"),
+                    ]
+                    for fb_col, fb_label, fb_action in fb_actions:
+                        if fb_col.button(fb_label, key=f"fb_{fb_action}_{fb_ticker}"):
+                            log_user_feedback(fb_ticker, fb_signal, fb_action)
+                            st.success(f"Tersimpan: {fb_label}")
+
+                _render_feedback_buttons()
 
                 ticker_feedback_history = load_user_feedback()
                 if not ticker_feedback_history.empty:
@@ -2892,7 +2957,7 @@ with tab_daily:
                     if not os.path.exists(_ivl_raw_path):
                         st.caption("Data harga lokal ticker ini belum ada di data/raw -- jalankan update harga dulu.")
                     else:
-                        _ivl_px = pd.read_csv(_ivl_raw_path)
+                        _ivl_px = cached_read_csv(_ivl_raw_path)
                         _ivl_close = pd.to_numeric(_ivl_px.get("close"), errors="coerce").dropna()
                         if len(_ivl_close) < 60:
                             st.caption("Riwayat harga < 60 hari -- sigma EWMA belum stabil, rentang tidak ditampilkan.")
@@ -2924,16 +2989,20 @@ with tab_daily:
                                 f"maks {_ivl_size['lots']} lot (referensi batas bawah band 80% H+10 = {_ivl_size.get('stop_reference', 0):,.0f}). "
                                 + ("" if _ivl_verified else "Berstatus SIMULASI karena ticker belum '✅ Terverifikasi Ganda' (prinsip desain #4).")
                             )
-                            if st.button(
-                                "📝 Catat interval H+10 ke log monitoring",
-                                key=f"ivl_log_{detail_ticker_choice}",
-                                help="Menambah 1 baris ke data/interval_log.csv (atomic, dedup per ticker+tanggal). "
-                                "Setelah >=30 interval melewati horizonnya, coverage aktual bisa diuji dari log ini.",
+                            @_st_fragment
+                            def _render_ivl_log_button(
+                                _t=detail_ticker_choice, _d=_ivl_date, _c=_ivl_last, _s=_ivl_sigma, _k=_ivl_k
                             ):
-                                log_issued_interval(
-                                    detail_ticker_choice, _ivl_date, _ivl_last, _ivl_sigma, 10, _ivl_k, BASE_DIR
-                                )
-                                st.success("Interval tercatat ke data/interval_log.csv.")
+                                if st.button(
+                                    "📝 Catat interval H+10 ke log monitoring",
+                                    key=f"ivl_log_{_t}",
+                                    help="Menambah 1 baris ke data/interval_log.csv (atomic, dedup per ticker+tanggal). "
+                                    "Setelah >=30 interval melewati horizonnya, coverage aktual bisa diuji dari log ini.",
+                                ):
+                                    log_issued_interval(_t, _d, _c, _s, 10, _k, BASE_DIR)
+                                    st.success("Interval tercatat ke data/interval_log.csv.")
+
+                            _render_ivl_log_button()
                 except Exception as _ivl_err:  # jangan pernah menjatuhkan dashboard karena fitur presentasi
                     st.caption(f"Expected range tidak tersedia: {_ivl_err}")
 
@@ -4536,7 +4605,7 @@ with tab_sentiment:
     st.caption("Data tersimpan lokal di `data/sentiment/market_issues.csv`, jadi bisa dipakai dari dashboard tanpa membuka VS Code.")
     if os.path.exists(sentiment_path):
         try:
-            sentiment_rows = len(pd.read_csv(sentiment_path))
+            sentiment_rows = len(cached_read_csv(sentiment_path))
             render_feature_status(
                 "Sentimen Pasar",
                 "SIAP" if sentiment_rows else "BELUM LENGKAP",
@@ -4861,7 +4930,7 @@ with tab_accuracy:
     accuracy_file = project_path("data", "tracking", "accuracy_log.csv")
     if os.path.exists(accuracy_file):
         try:
-            accuracy_rows = len(pd.read_csv(accuracy_file)) if os.path.getsize(accuracy_file) > 0 else 0
+            accuracy_rows = len(cached_read_csv(accuracy_file)) if os.path.getsize(accuracy_file) > 0 else 0
             pending_status = summarize_prediction_status()
             pending_count = 0
             if not pending_status.empty:
@@ -4959,7 +5028,7 @@ with tab_accuracy:
         o4.metric("Akurasi Gabungan", f"{latest_accuracy:.2f}%")
         if accuracy_purpose == "NEXT_DAY_DIRECTION" and latest_accuracy < 50.0 and os.path.exists(accuracy_file):
             try:
-                raw_accuracy_df = pd.read_csv(accuracy_file)
+                raw_accuracy_df = cached_read_csv(accuracy_file)
                 raw_accuracy_df["evaluation_day"] = pd.to_datetime(raw_accuracy_df["evaluation_date"], errors="coerce").dt.strftime("%Y-%m-%d")
                 latest_h1_df = raw_accuracy_df[
                     (raw_accuracy_df["evaluation_day"] == str(latest_day))
@@ -4986,11 +5055,17 @@ with tab_accuracy:
             except Exception as e:
                 st.caption(f"Diagnosis akurasi harian belum bisa dibuat: {e}")
 
-        with st.expander("Lihat rekap semua saham per hari dan model", expanded=True):
-            st.dataframe(overall_daily_recap_df.style.format({
-                "direction_accuracy_pct": "{:.2f}%",
-                "avg_error_margin_pct": "{:.2f}%",
-            }), width="stretch")
+        with st.expander("Lihat rekap semua saham per hari dan model", expanded=False):
+            render_limited_dataframe(
+                overall_daily_recap_df,
+                "rekap_akurasi_per_hari_model",
+                top_n=50,
+                format_map={
+                    "direction_accuracy_pct": "{:.2f}%",
+                    "avg_error_margin_pct": "{:.2f}%",
+                },
+                width="stretch",
+            )
 
             overall_chart_df = overall_daily_recap_df.copy()
             render_interactive_accuracy_trend(
